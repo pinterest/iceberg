@@ -14,11 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
 
+from setuptools import find_packages
 from setuptools import setup
 
+HERE = os.path.abspath(os.path.dirname(__file__))
+
+
+def get_version(file_path):
+    with open(os.path.join(HERE, file_path), 'r') as f:
+        for line in f.readlines():
+            print(line)
+            if line.startswith('__version__'):
+                return line.split("'")[1]
+    raise RuntimeError("Unable to find version string.")
+
+
 setup(
-    name='iceberg',
+    name='py-iceberg',
+    packages=find_packages(exclude=["tests*"]),
+    version=get_version('iceberg/__init__.py'),
     maintainer='Apache Iceberg Devs',
     author_email='dev@iceberg.apache.org',
     description='Iceberg is a new table format for storing large, slow-moving tabular data',

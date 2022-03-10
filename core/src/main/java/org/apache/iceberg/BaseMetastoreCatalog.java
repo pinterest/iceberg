@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -27,7 +28,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +108,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
     private final TableIdentifier identifier;
     private final Schema schema;
-    private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
+    private final Map<String, String> tableProperties = Maps.newHashMap();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
     private String location = null;
@@ -116,6 +118,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       this.identifier = identifier;
       this.schema = schema;
+      this.tableProperties.putAll(tableDefaultProperties());
     }
 
     @Override
@@ -139,14 +142,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     @Override
     public TableBuilder withProperties(Map<String, String> properties) {
       if (properties != null) {
-        propertiesBuilder.putAll(properties);
+        tableProperties.putAll(properties);
       }
       return this;
     }
 
     @Override
     public TableBuilder withProperty(String key, String value) {
-      propertiesBuilder.put(key, value);
+      tableProperties.put(key, value);
       return this;
     }
 
@@ -158,8 +161,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
+      tableProperties.putAll(tableOverrideProperties());
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
 
       try {
         ops.commit(null, metadata);
@@ -178,8 +181,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
+      tableProperties.putAll(tableOverrideProperties());
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
@@ -200,12 +203,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       TableMetadata metadata;
+      tableProperties.putAll(tableOverrideProperties());
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
-        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
+        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       }
 
       if (orCreate) {
@@ -213,6 +217,24 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       } else {
         return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
       }
+    }
+
+    /**
+     * Get default table properties set at Catalog level through catalog properties.
+     *
+     * @return default table properties specified in catalog properties
+     */
+    private Map<String, String> tableDefaultProperties() {
+      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+    }
+
+    /**
+     * Get table properties that are enforced at Catalog level through catalog properties.
+     *
+     * @return default table properties enforced through catalog properties
+     */
+    private Map<String, String> tableOverrideProperties() {
+      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
     }
   }
 
@@ -237,5 +259,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  protected Map<String, String> properties() {
+    return Collections.emptyMap();
   }
 }

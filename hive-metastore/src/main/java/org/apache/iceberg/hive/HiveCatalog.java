@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,12 +73,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
+  private Map<String, String> catalogProps = Collections.emptyMap();
 
   public HiveCatalog() {
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
+    this.catalogProps = properties;
+
     this.name = inputName;
     if (conf == null) {
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
@@ -535,6 +539,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   public Configuration getConf() {
     return conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return this.catalogProps;
   }
 
   @VisibleForTesting

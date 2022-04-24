@@ -53,6 +53,9 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
+  protected static final String FILE_PATH = "file_path";
+  protected static final String LAST_MODIFIED = "last_modified";
+
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
 
   private final SparkSession spark;

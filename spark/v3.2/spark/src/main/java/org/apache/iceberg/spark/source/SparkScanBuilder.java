@@ -258,7 +258,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         .ignoreResiduals()
         .caseSensitive(caseSensitive)
         .filter(filterExpression())
-        .project(expectedSchema);
+        .project(expectedSchema)
+        .includeColumnStats();
 
     scan = configureSplitPlanning(scan);
 

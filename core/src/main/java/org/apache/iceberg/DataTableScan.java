@@ -36,7 +36,8 @@ public class DataTableScan extends BaseTableScan {
           "record_count",
           "partition",
           "key_metadata",
-          "split_offsets");
+          "split_offsets",
+          "sort_order_id");
   static final ImmutableList<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder()
           .addAll(SCAN_COLUMNS)

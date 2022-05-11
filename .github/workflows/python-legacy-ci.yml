@@ -48,6 +48,7 @@ jobs:
         python-version: ${{ matrix.python }}
     - working-directory: ./python_legacy
       run: |
+        echo "__version__ = '0.0.0'" >> iceberg/__init__.py
         pip install -e .[dev]
         pip install -U tox-gh-actions
     - working-directory: ./python_legacy

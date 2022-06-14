@@ -260,6 +260,6 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps.doCommit(metadataV2, metadataV1);
 
-    verify(spyClient, times(1)).heartbeat(eq(0L), eq(dummyLockId));
+    verify(spyClient, times(2)).heartbeat(eq(0L), eq(dummyLockId));
   }
 }

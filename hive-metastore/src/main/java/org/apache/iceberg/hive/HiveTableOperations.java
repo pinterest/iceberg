@@ -29,6 +29,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -69,6 +74,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -150,6 +157,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
 
+  private HiveLockHeartbeat hiveLockHeartbeat;
+
   protected HiveTableOperations(Configuration conf, ClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
     this.conf = conf;
@@ -224,7 +233,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     tableLevelMutex.lock();
     try {
       lockId = Optional.of(acquireLock());
-      // TODO add lock heart beating for cases where default lock timeout is too low.
+      hiveLockHeartbeat = new HiveLockHeartbeat(metaClients, lockId.get(), lockCheckMaxWaitTime, lockAcquireTimeout);
+      hiveLockHeartbeat.schedule(MoreExecutors.getExitingScheduledExecutorService(
+          (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
+              1,
+              new ThreadFactoryBuilder()
+                  .setDaemon(true)
+                  .setNameFormat("iceberg-hive-lock-heartbeat-%d")
+                  .build())));
 
       Table tbl = loadHmsTable();
 
@@ -301,6 +317,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during commit", e);
 
     } finally {
+      if (hiveLockHeartbeat != null) {
+        hiveLockHeartbeat.cancel();
+      }
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
   }
@@ -548,5 +567,44 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     return conf.getBoolean(ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
+  }
+
+  private static class HiveLockHeartbeat implements Runnable {
+    private final ClientPool<IMetaStoreClient, TException> hmsClients;
+    private final long lockId;
+    private final long intervalMs;
+    private final long timeoutMs;
+    private ScheduledFuture<?> future;
+
+    HiveLockHeartbeat(ClientPool<IMetaStoreClient, TException> hmsClients, long lockId, long intervalMs,
+        long timeoutMs) {
+      this.hmsClients = hmsClients;
+      this.lockId = lockId;
+      this.intervalMs = intervalMs;
+      this.timeoutMs = timeoutMs;
+      this.future = null;
+    }
+
+    @Override
+    public void run() {
+      try {
+        hmsClients.run(client -> {
+          client.heartbeat(0, lockId);
+          return null;
+        });
+      } catch (TException | InterruptedException e) {
+        LOG.error("Fail to heartbeat for lock: {}", lockId, e);
+      }
+    }
+
+    public void schedule(ScheduledExecutorService scheduler) {
+      future = scheduler.scheduleAtFixedRate(this, 0, intervalMs, TimeUnit.MILLISECONDS);
+    }
+
+    public void cancel() {
+      if (future != null) {
+        future.cancel(false);
+      }
+    }
   }
 }

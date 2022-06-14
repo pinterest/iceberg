@@ -43,9 +43,12 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.AdditionalAnswers;
+import org.mockito.invocation.InvocationOnMock;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
@@ -247,5 +250,16 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     verify(spyClient, never()).checkLock(any(Long.class));
     // all threads eventually got their turn
     verify(spyClient, times(numConcurrentCommits)).lock(any(LockRequest.class));
+  }
+
+  @Test
+  public void testLockHeartbeat() throws TException {
+    doReturn(acquiredLockResponse).when(spyClient).lock(any());
+    doAnswer(AdditionalAnswers.answersWithDelay(2000, InvocationOnMock::callRealMethod))
+        .when(spyClient).getTable(any(), any());
+
+    spyOps.doCommit(metadataV2, metadataV1);
+
+    verify(spyClient, times(1)).heartbeat(eq(0L), eq(dummyLockId));
   }
 }

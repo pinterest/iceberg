@@ -32,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -73,7 +72,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
@@ -155,6 +153,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
+  private final ScheduledExecutorService exitingScheduledExecutorService;
 
   private HiveLockHeartbeat hiveLockHeartbeat;
 
@@ -176,6 +175,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
+    this.exitingScheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
+        new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("iceberg-hive-lock-heartbeat-%d")
+            .build());
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
   }
 
@@ -232,14 +236,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     tableLevelMutex.lock();
     try {
       lockId = Optional.of(acquireLock());
-      hiveLockHeartbeat = new HiveLockHeartbeat(metaClients, lockId.get(), lockCheckMaxWaitTime, lockAcquireTimeout);
-      hiveLockHeartbeat.schedule(MoreExecutors.getExitingScheduledExecutorService(
-          (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
-              1,
-              new ThreadFactoryBuilder()
-                  .setDaemon(true)
-                  .setNameFormat("iceberg-hive-lock-heartbeat-%d")
-                  .build())));
+      hiveLockHeartbeat = new HiveLockHeartbeat(metaClients, lockId.get(), lockCheckMaxWaitTime);
+      hiveLockHeartbeat.schedule(exitingScheduledExecutorService);
 
       Table tbl = loadHmsTable();
 
@@ -572,15 +570,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     private final ClientPool<IMetaStoreClient, TException> hmsClients;
     private final long lockId;
     private final long intervalMs;
-    private final long timeoutMs;
     private ScheduledFuture<?> future;
 
-    HiveLockHeartbeat(ClientPool<IMetaStoreClient, TException> hmsClients, long lockId, long intervalMs,
-        long timeoutMs) {
+    HiveLockHeartbeat(ClientPool<IMetaStoreClient, TException> hmsClients, long lockId, long intervalMs) {
       this.hmsClients = hmsClients;
       this.lockId = lockId;
       this.intervalMs = intervalMs;
-      this.timeoutMs = timeoutMs;
       this.future = null;
     }
 

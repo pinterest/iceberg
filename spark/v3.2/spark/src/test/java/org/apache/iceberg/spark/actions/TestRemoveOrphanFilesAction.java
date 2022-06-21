@@ -67,6 +67,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
@@ -820,5 +822,60 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .execute();
     Assert.assertEquals(
         "Action should find nothing", Lists.newArrayList(), result4.orphanFileLocations());
+  }
+
+  @Test
+  public void testAlternateSchemes() {
+    Table table =
+        catalog.createTable(TableIdentifier.of("default", "hivetestorphanschemes"), SCHEMA, SPEC, tableLocation,
+            Maps.newHashMap());
+
+    BaseDeleteOrphanFilesSparkAction deleteOrphanFiles =
+        spy((BaseDeleteOrphanFilesSparkAction) SparkActions.get().deleteOrphanFiles(table));
+
+    List<FilePathLastModifiedRecord> contentFiles = Lists.newArrayList(
+        new FilePathLastModifiedRecord("s3://a/b/c", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3a://a/b/d", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3n://a/b/e", new Timestamp(0L))
+    );
+    Dataset<Row> contentFileDf =
+        spark
+            .createDataFrame(contentFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    doReturn(contentFileDf).when(deleteOrphanFiles).buildValidDataFileDF(table);
+
+    List<FilePathLastModifiedRecord> metadataFiles = Lists.newArrayList(
+        new FilePathLastModifiedRecord("s3://a/b/f", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3n://a/b/g", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3a://a/b/h", new Timestamp(0L))
+    );
+    Dataset<Row> metadataFileDf =
+        spark
+            .createDataFrame(metadataFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    doReturn(metadataFileDf).when(deleteOrphanFiles).buildValidMetadataFileDF(table);
+
+    List<FilePathLastModifiedRecord> actualFiles = Lists.newArrayList(
+        new FilePathLastModifiedRecord("s3://a/b/c", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3://a/b/d", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3://a/b/e", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3://a/b/f", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3://a/b/g", new Timestamp(0L)),
+        new FilePathLastModifiedRecord("s3://a/b/h", new Timestamp(0L))
+    );
+    Dataset<Row> actualFileDf =
+        spark
+            .createDataFrame(actualFiles, FilePathLastModifiedRecord.class)
+            .select("filePath")
+            .withColumnRenamed("filePath", "file_path");
+    doReturn(actualFileDf).when(deleteOrphanFiles).buildActualFileDF();
+
+    DeleteOrphanFiles.Result result =
+        deleteOrphanFiles.withRegexReplace("^s3[a|n]?:\\/\\/", "s3://").execute();
+
+    Assert
+        .assertFalse("There should not be any orphan files.", result.orphanFileLocations().iterator().hasNext());
   }
 }

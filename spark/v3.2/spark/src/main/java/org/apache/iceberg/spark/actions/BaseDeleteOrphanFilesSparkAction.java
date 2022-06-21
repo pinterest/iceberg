@@ -38,6 +38,7 @@ import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -113,6 +114,8 @@ public class BaseDeleteOrphanFilesSparkAction
 
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private Dataset<Row> compareToFileList;
+  private String regexReplacePattern;
+  private String regexReplaceReplacement;
 
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -177,6 +180,12 @@ public class BaseDeleteOrphanFilesSparkAction
     return this;
   }
 
+  public BaseDeleteOrphanFilesSparkAction withRegexReplace(String pattern, String replacement) {
+    this.regexReplacePattern = pattern;
+    this.regexReplaceReplacement = replacement;
+    return this;
+  }
+
   private Dataset<Row> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
@@ -211,7 +220,16 @@ public class BaseDeleteOrphanFilesSparkAction
     Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));
     Column validFileName = filenameUDF.apply(validFileDF.col("file_path"));
     Column nameEqual = actualFileName.equalTo(validFileName);
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
+    Column updatedActualFilesColumn = actualFileDF.col(FILE_PATH);
+    Column updatedValidFilesColumn = validFileDF.col(FILE_PATH);
+
+    if (this.regexReplacePattern != null && this.regexReplaceReplacement != null) {
+      updatedActualFilesColumn = functions.regexp_replace(updatedActualFilesColumn,
+          this.regexReplacePattern, this.regexReplaceReplacement);
+      updatedValidFilesColumn = functions.regexp_replace(updatedValidFilesColumn,
+          this.regexReplacePattern, this.regexReplaceReplacement);
+    }
+    Column actualContains = updatedActualFilesColumn.contains(updatedValidFilesColumn);
     Column joinCond = nameEqual.and(actualContains);
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
@@ -227,7 +245,8 @@ public class BaseDeleteOrphanFilesSparkAction
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);
   }
 
-  private Dataset<Row> buildActualFileDF() {
+  @VisibleForTesting
+  Dataset<Row> buildActualFileDF() {
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 

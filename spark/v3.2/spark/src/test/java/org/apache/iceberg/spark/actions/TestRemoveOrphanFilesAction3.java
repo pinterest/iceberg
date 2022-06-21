@@ -165,6 +165,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
 
+  @Test
+  public void testSimilarSchemes() {
+
+  }
+
   @After
   public void resetSparkSessionCatalog() throws Exception {
     spark.conf().unset("spark.sql.catalog.spark_catalog");

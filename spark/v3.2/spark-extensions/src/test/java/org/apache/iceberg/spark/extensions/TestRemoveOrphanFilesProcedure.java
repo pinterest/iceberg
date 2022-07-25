@@ -28,7 +28,9 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Assert;
@@ -305,5 +307,45 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         () -> sql(
             "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
             catalogName, tableIdent, -1));
+
+    String tempViewName = "file_list_test";
+    spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_list_view is missing required columns",
+        IllegalArgumentException.class,
+        "does not exist. Available:",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_path has wrong type",
+        IllegalArgumentException.class,
+        "Invalid file_path column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if last_modified has wrong type",
+        IllegalArgumentException.class,
+        "Invalid last_modified column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
   }
 }

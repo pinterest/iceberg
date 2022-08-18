@@ -200,15 +200,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private String metadataFileLocation(TableMetadata metadata, String filename) {
     String metadataLocation = metadata.properties()
         .get(TableProperties.WRITE_METADATA_LOCATION);
-    String pinterestMetadataPrefix = metadata.properties().get(TableProperties.PINTEREST_WRITE_METADATA_PREFIX);
-    String pinterestMetadataTableIdentifier = metadata.properties().get(TableProperties.PINTEREST_WRITE_METADATA_TABLE_IDENTIFIER);
+    String pinterestMetadataPrefix = metadata.properties()
+            .get(TableProperties.PINTEREST_WRITE_METADATA_PREFIX);
+    String pinterestMetadataTableIdentifier = metadata.properties()
+            .get(TableProperties.PINTEREST_WRITE_METADATA_TABLE_IDENTIFIER);
 
     if (metadataLocation != null) {
       return String.format("%s/%s", metadataLocation, filename);
     } else if (pinterestMetadataPrefix != null && pinterestMetadataTableIdentifier != null) {
       return String.format("%s/%s/%s", pinterestMetadataPrefix, pinterestMetadataTableIdentifier, filename);
     } else if (pinterestMetadataPrefix != null ^ pinterestMetadataTableIdentifier != null) {
-      throw new IllegalArgumentException("pinterestMetadataPrefix and pinterestMetadataTableIdentifier should be set at the same time");
+      throw new IllegalArgumentException(
+              "pinterestMetadataPrefix and pinterestMetadataTableIdentifier should be set at the same time");
     } else {
       return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
     }

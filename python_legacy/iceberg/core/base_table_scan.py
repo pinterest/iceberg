@@ -145,6 +145,25 @@ class BaseTableScan(CloseableGroup, TableScan):
         else:
             _logger.info("Scanning empty table {}" % self.table)
 
+    def partitions_scan(self, ops=None, snapshot=None):
+
+        if not all(i is None for i in [ops, snapshot]):
+            raise NotImplementedError()
+
+        snapshot = self.ops.current().snapshot(self.snapshot_id) \
+            if self.snapshot_id is not None else self.ops.current().current_snapshot()
+
+        if snapshot is not None:
+            _logger.info("Scanning partitions for table {} snapshot {} created at {}"
+                         .format(self.table,
+                                 snapshot.snapshot_id,
+                                 datetime.fromtimestamp(snapshot.timestamp_millis / 1000.0)
+                                 .strftime(BaseTableScan.DATE_FORMAT)))
+
+            return self.partitions_scan(ops, snapshot)
+        else:
+            _logger.info("Scanning empty table {}" % self.table)
+
     def plan_tasks(self):
         split_size = self.target_split_size(self.ops)
         lookback = int(self.ops.current().properties.get(TableProperties.SPLIT_LOOKBACK,

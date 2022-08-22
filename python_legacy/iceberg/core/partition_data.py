@@ -59,7 +59,7 @@ class PartitionData(StructLike):
         return hash(self.__key())
 
     def __key(self):
-        return PartitionData.__class__, self.partition_type, self.data
+        return PartitionData.__class__, self.partition_type, tuple(self.data)
 
     def __ne__(self, other):
         return not self.__eq__(other)

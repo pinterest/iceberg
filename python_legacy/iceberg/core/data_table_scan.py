@@ -72,6 +72,22 @@ class DataTableScan(BaseTableScan):
             return itertools.chain.from_iterable([self.get_scans_for_manifest(manifest)
                                                   for manifest in matching_manifests])
 
+    def partitions_scan(self, ops=None, snapshot=None):
+        if all(i is None for i in [ops, snapshot]):
+            return super(DataTableScan, self).partitions_scan()
+
+        matching_manifests = [manifest for manifest in snapshot.manifests
+                              if self.cache_loader(manifest.spec_id).eval(manifest)]
+
+        if self.ops.conf.get(SCAN_THREAD_POOL_ENABLED):
+            with Pool(self.ops.conf.get(WORKER_THREAD_POOL_SIZE_PROP,
+                                        cpu_count())) as reader_scan_pool:
+                partitions = ([scan for scan in reader_scan_pool.map(self.get_partitions_for_manifest, matching_manifests)])
+                return set().union(*partitions)
+        else:
+            partitions = [self.get_partitions_for_manifest(manifest) for manifest in matching_manifests]
+            return set().union(*partitions)
+
     def cache_loader(self, spec_id):
         spec = self.ops.current().spec_id(spec_id)
         return InclusiveManifestEvaluator(spec, self.row_filter)
@@ -85,6 +101,15 @@ class DataTableScan(BaseTableScan):
         residuals = ResidualEvaluator(reader.spec, self.row_filter)
         return [BaseFileScanTask(file, schema_str, spec_str, residuals)
                 for file in reader.filter_rows(self.row_filter).select(BaseTableScan.SNAPSHOT_COLUMNS).iterator()]
+
+    def get_partitions_for_manifest(self, manifest):
+        from .filesystem import FileSystemInputFile
+        input_file = FileSystemInputFile.from_location(manifest.manifest_path, self.ops.conf)
+        reader = ManifestReader.read(input_file)
+        partitions = set()
+        for file in reader.filter_rows(self.row_filter).select(BaseTableScan.SNAPSHOT_COLUMNS).iterator():
+            partitions.add(file.partition())
+        return partitions
 
     def target_split_size(self, ops):
         scan_split_size_str = self.options.get(TableProperties.SPLIT_SIZE)

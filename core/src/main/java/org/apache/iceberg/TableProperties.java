@@ -178,10 +178,7 @@ public class TableProperties {
   // relocated to reflect this parameter.
   // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
-
-  public static final String PINTEREST_WRITE_METADATA_PREFIX = "pinterest.write.metadata.prefix";
-
-  public static final String PINTEREST_WRITE_METADATA_TABLE_IDENTIFIER = "pinterest.write.metadata.table.identifier";
+  public static final String WRITE_METADATA_LOCATION_SELECTIVE_SUFFIX = "write.metadata.path.selective.suffix";
 
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;

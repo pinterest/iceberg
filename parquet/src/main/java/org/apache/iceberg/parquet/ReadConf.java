@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -62,6 +63,7 @@ class ReadConf<T> {
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
+  private final boolean isThriftBackedTable;
 
   @SuppressWarnings("unchecked")
   ReadConf(
@@ -74,13 +76,20 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      boolean isThriftBackedTable) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
 
     MessageType typeWithIds;
+    if (isThriftBackedTable) {
+      NameMapping nameMappingFromExpectedSchema = MappingUtil.create(expectedSchema);
+      fileSchema =
+          ParquetSchemaUtil.applyNameMapping(
+              RemoveIds.removeIds(fileSchema), nameMappingFromExpectedSchema);
+    }
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       typeWithIds = fileSchema;
       this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
@@ -139,6 +148,7 @@ class ReadConf<T> {
 
     this.reuseContainers = reuseContainers;
     this.batchSize = bSize;
+    this.isThriftBackedTable = isThriftBackedTable;
   }
 
   private ReadConf(ReadConf<T> toCopy) {
@@ -155,6 +165,7 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+    this.isThriftBackedTable = toCopy.isThriftBackedTable;
   }
 
   ParquetFileReader reader() {

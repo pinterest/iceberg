@@ -52,6 +52,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final boolean isThriftBackedTable;
 
   RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task);
@@ -59,6 +60,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
+    this.isThriftBackedTable = Boolean.parseBoolean(table.properties().get("thrift_type"));
   }
 
   @Override
@@ -136,9 +138,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
             .split(task.start(), task.length())
             .project(readSchema)
             .createReaderFunc(
-                fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+                fileSchema -> SparkParquetReaders.buildReader(
+                    readSchema, fileSchema, idToConstant, isThriftBackedTable))
             .filter(task.residual())
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            .isThriftBackedTable();
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

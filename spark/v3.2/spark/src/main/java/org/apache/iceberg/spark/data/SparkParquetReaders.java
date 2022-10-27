@@ -77,12 +77,15 @@ public class SparkParquetReaders {
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(
-      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant, boolean isThriftBackedTable) {
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      boolean isThriftBackedTable) {
     MessageType updatedFileSchema = fileSchema;
     if (isThriftBackedTable) {
       NameMapping nameMapping = MappingUtil.create(expectedSchema);
-      updatedFileSchema = ParquetSchemaUtil
-          .applyNameMapping(RemoveIds.removeIds(fileSchema), nameMapping);
+      updatedFileSchema =
+          ParquetSchemaUtil.applyNameMapping(RemoveIds.removeIds(fileSchema), nameMapping);
     }
 
     return buildReader(expectedSchema, updatedFileSchema, idToConstant);

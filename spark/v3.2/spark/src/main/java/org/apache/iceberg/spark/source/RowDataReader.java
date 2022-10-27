@@ -138,8 +138,9 @@ class RowDataReader extends BaseDataReader<InternalRow> {
             .split(task.start(), task.length())
             .project(readSchema)
             .createReaderFunc(
-                fileSchema -> SparkParquetReaders.buildReader(
-                    readSchema, fileSchema, idToConstant, isThriftBackedTable))
+                fileSchema ->
+                    SparkParquetReaders.buildReader(
+                        readSchema, fileSchema, idToConstant, isThriftBackedTable))
             .filter(task.residual())
             .caseSensitive(caseSensitive)
             .isThriftBackedTable();

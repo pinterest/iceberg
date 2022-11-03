@@ -143,7 +143,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
                         readSchema, fileSchema, idToConstant, isThriftBackedTable))
             .filter(task.residual())
             .caseSensitive(caseSensitive)
-            .isThriftBackedTable();
+            .isThriftBackedTable(isThriftBackedTable);
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

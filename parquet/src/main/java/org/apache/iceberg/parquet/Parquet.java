@@ -976,8 +976,8 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder isThriftBackedTable(boolean isThriftBackedTable) {
-      this.isThriftBackedTable = isThriftBackedTable;
+    public ReadBuilder isThriftBackedTable(boolean thriftBackedTable) {
+      this.isThriftBackedTable = thriftBackedTable;
       return this;
     }
 

@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.parquet.Strings;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
@@ -60,7 +61,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
-    this.isThriftBackedTable = Boolean.parseBoolean(table.properties().get("thrift_type"));
+    this.isThriftBackedTable = !Strings.isNullOrEmpty(table.properties().get("thrift_type"));
   }
 
   @Override

@@ -55,6 +55,18 @@ class DataTableScan(BaseTableScan):
                              snapshot_id=snapshot_id, row_filter=row_filter, case_sensitive=case_sensitive,
                              selected_columns=selected_columns, options=options, minused_cols=minused_cols)
 
+    def check_partition_exist(self, ops=None, snapshot=None, row_filter=None):
+        if all(i is None for i in [ops, snapshot, row_filter]):
+            return super(DataTableScan, self).check_partition_exist()
+
+        matching_manifests = [manifest for manifest in snapshot.manifests
+                              if self.cache_loader(manifest.spec_id).eval(manifest)]
+
+        for manifest in matching_manifests:
+            if self.check_partition_for_manifest(manifest):
+                return True
+        return False
+
     def plan_files(self, ops=None, snapshot=None, row_filter=None):
         if all(i is None for i in [ops, snapshot, row_filter]):
             return super(DataTableScan, self).plan_files()
@@ -91,6 +103,13 @@ class DataTableScan(BaseTableScan):
     def cache_loader(self, spec_id):
         spec = self.ops.current().spec_id(spec_id)
         return InclusiveManifestEvaluator(spec, self.row_filter)
+
+    def check_partition_for_manifest(self, manifest):
+        from .filesystem import FileSystemInputFile
+        input_file = FileSystemInputFile.from_location(manifest.manifest_path, self.ops.conf)
+        reader = ManifestReader.read(input_file)
+        for _ in reader.filter_partitions(self.row_filter).iterator():
+            return True
 
     def get_scans_for_manifest(self, manifest):
         from .filesystem import FileSystemInputFile

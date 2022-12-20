@@ -143,8 +143,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
                     SparkParquetReaders.buildReader(
                         readSchema, fileSchema, idToConstant, isThriftBackedTable))
             .filter(task.residual())
-            .caseSensitive(caseSensitive)
-            .isThriftBackedTable(isThriftBackedTable);
+            .caseSensitive(caseSensitive);
+
+    if (isThriftBackedTable) {
+        builder.isThriftBackedTable();
+    }
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

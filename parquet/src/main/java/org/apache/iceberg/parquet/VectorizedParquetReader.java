@@ -45,6 +45,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final ParquetReadOptions options;
   private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
   private final Expression filter;
+  private final boolean isThriftBackedTable;
   private boolean reuseContainers;
   private final boolean caseSensitive;
   private final int batchSize;
@@ -59,7 +60,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive,
-      int maxRecordsPerBatch) {
+      int maxRecordsPerBatch,
+      boolean isThriftBackedTable) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -70,6 +72,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
+    this.isThriftBackedTable = isThriftBackedTable;
   }
 
   private ReadConf conf = null;
@@ -87,7 +90,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               nameMapping,
               reuseContainers,
               caseSensitive,
-              batchSize);
+              batchSize,
+              isThriftBackedTable);
       this.conf = readConf.copy();
       return readConf;
     }

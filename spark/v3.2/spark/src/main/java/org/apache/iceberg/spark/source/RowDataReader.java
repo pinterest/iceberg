@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.parquet.Strings;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
@@ -52,6 +53,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final boolean isThriftBackedTable;
 
   RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task);
@@ -59,6 +61,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
+    this.isThriftBackedTable = !Strings.isNullOrEmpty(table.properties().get("thrift_type"));
   }
 
   @Override
@@ -136,9 +139,12 @@ class RowDataReader extends BaseDataReader<InternalRow> {
             .split(task.start(), task.length())
             .project(readSchema)
             .createReaderFunc(
-                fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+                fileSchema ->
+                    SparkParquetReaders.buildReader(
+                        readSchema, fileSchema, idToConstant, isThriftBackedTable))
             .filter(task.residual())
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            .isThriftBackedTable(isThriftBackedTable);
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

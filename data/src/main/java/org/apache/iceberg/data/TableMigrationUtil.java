@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
+  public static final String IGNORE_PARQUET_FIELD_IDS = "ignore.parquet.file.ids";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -165,7 +166,11 @@ public class TableMigrationUtil {
       Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
-      return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+      return ParquetUtil.fileMetrics(
+          file,
+          metricsSpec,
+          mapping,
+          Boolean.parseBoolean(conf.get(IGNORE_PARQUET_FIELD_IDS, "false")));
     } catch (UncheckedIOException e) {
       throw new RuntimeException("Unable to read the metrics of the Parquet file: " + path, e);
     }

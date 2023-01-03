@@ -514,7 +514,7 @@ public class SparkTableUtil {
       Configuration conf = spark.sessionState().newHadoopConf();
       MetricsConfig metricsConfig = MetricsConfig.forTable(targetTable);
       boolean isThriftBackedTable =
-          !Strings.isNullOrEmpty(targetTable.properties().get("thrift_type"));
+          !Strings.isNullOrEmpty(targetTable.properties().get(TableProperties.THRIFT_TYPE));
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping =
           isThriftBackedTable
@@ -578,7 +578,7 @@ public class SparkTableUtil {
       String stagingDir,
       boolean checkDuplicateFiles) {
     boolean isThriftBackedTable =
-        !Strings.isNullOrEmpty(targetTable.properties().get("thrift_type"));
+        !Strings.isNullOrEmpty(targetTable.properties().get(TableProperties.THRIFT_TYPE));
     Configuration conf = spark.sessionState().newHadoopConf();
     if (isThriftBackedTable) {
       conf.set(TableMigrationUtil.IGNORE_PARQUET_FIELD_IDS, "true");

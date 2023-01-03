@@ -345,4 +345,6 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String THRIFT_TYPE = "thrift_type";
 }

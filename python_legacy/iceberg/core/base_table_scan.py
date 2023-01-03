@@ -125,6 +125,26 @@ class BaseTableScan(CloseableGroup, TableScan):
                                      selected_columns=self.selected_columns, options=builder,
                                      minused_cols=self.minused_cols)
 
+    def check_partition_exist(self, ops=None, snapshot=None, row_filter=None):
+
+        if not all(i is None for i in [ops, snapshot, row_filter]):
+            raise NotImplementedError()
+
+        snapshot = self.ops.current().snapshot(self.snapshot_id) \
+            if self.snapshot_id is not None else self.ops.current().current_snapshot()
+
+        if snapshot is not None:
+            _logger.info("Checking partitions for table {} snapshot {} created at {} with filter {}"
+                         .format(self.table,
+                                 snapshot.snapshot_id,
+                                 datetime.fromtimestamp(snapshot.timestamp_millis / 1000.0)
+                                 .strftime(BaseTableScan.DATE_FORMAT),
+                                 self._row_filter))
+
+            return self.check_partition_exist(ops, snapshot, row_filter)
+        else:
+            _logger.info("Scanning empty table {}" % self.table)
+
     def plan_files(self, ops=None, snapshot=None, row_filter=None):
 
         if not all(i is None for i in [ops, snapshot, row_filter]):

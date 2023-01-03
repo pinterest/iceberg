@@ -61,7 +61,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
-    this.isThriftBackedTable = !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
+    this.isThriftBackedTable =
+        !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
   }
 
   @Override

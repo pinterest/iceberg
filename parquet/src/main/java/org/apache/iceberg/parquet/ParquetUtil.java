@@ -77,8 +77,14 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
+    return fileMetrics(file, metricsConfig, nameMapping, false);
+  }
+
+  public static Metrics fileMetrics(
+      InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping, boolean ignoreFileIds) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+      return footerMetrics(
+          reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, ignoreFileIds);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
@@ -95,6 +101,16 @@ public class ParquetUtil {
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
       NameMapping nameMapping) {
+    return footerMetrics(metadata, fieldMetrics, metricsConfig, nameMapping, false);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static Metrics footerMetrics(
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping,
+      boolean ignoreFileIds) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
 
     long rowCount = 0;
@@ -106,7 +122,7 @@ public class ParquetUtil {
     Set<Integer> missingStats = Sets.newHashSet();
 
     // ignore metrics for fields we failed to determine reliable IDs
-    MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
+    MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping, ignoreFileIds);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
@@ -212,9 +228,14 @@ public class ParquetUtil {
 
   private static MessageType getParquetTypeWithIds(
       ParquetMetadata metadata, NameMapping nameMapping) {
+    return getParquetTypeWithIds(metadata, nameMapping, false);
+  }
+
+  private static MessageType getParquetTypeWithIds(
+      ParquetMetadata metadata, NameMapping nameMapping, boolean ignoreFileIds) {
     MessageType type = metadata.getFileMetaData().getSchema();
 
-    if (ParquetSchemaUtil.hasIds(type)) {
+    if (!ignoreFileIds && ParquetSchemaUtil.hasIds(type)) {
       return type;
     }
 

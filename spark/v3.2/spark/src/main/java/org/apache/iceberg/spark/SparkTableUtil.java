@@ -49,6 +49,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -63,6 +64,7 @@ import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.parquet.Strings;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -514,9 +516,13 @@ public class SparkTableUtil {
       PartitionSpec spec = PartitionSpec.unpartitioned();
       Configuration conf = spark.sessionState().newHadoopConf();
       MetricsConfig metricsConfig = MetricsConfig.forTable(targetTable);
+      boolean isThriftBackedTable =
+          !Strings.isNullOrEmpty(targetTable.properties().get(TableProperties.THRIFT_TYPE));
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping =
-          nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+          isThriftBackedTable
+              ? MappingUtil.create(targetTable.schema())
+              : (nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null);
 
       List<DataFile> files =
           TableMigrationUtil.listPartition(
@@ -574,7 +580,12 @@ public class SparkTableUtil {
       PartitionSpec spec,
       String stagingDir,
       boolean checkDuplicateFiles) {
+    boolean isThriftBackedTable =
+        !Strings.isNullOrEmpty(targetTable.properties().get(TableProperties.THRIFT_TYPE));
     Configuration conf = spark.sessionState().newHadoopConf();
+    if (isThriftBackedTable) {
+      conf.set(TableMigrationUtil.IGNORE_PARQUET_FIELD_IDS, "true");
+    }
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
     int parallelism =
         Math.min(
@@ -583,7 +594,9 @@ public class SparkTableUtil {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
-        nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+        isThriftBackedTable
+            ? MappingUtil.create(targetTable.schema())
+            : (nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null);
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);

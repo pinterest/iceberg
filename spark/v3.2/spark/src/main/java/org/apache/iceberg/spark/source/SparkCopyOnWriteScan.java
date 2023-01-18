@@ -149,9 +149,9 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
     if (tasks == null) {
       CloseableIterable<CombinedScanTask> scanTasks;
       if (readConf.fileAsSplit()) {
-        scanTasks = CloseableIterable.transform(
-            CloseableIterable.withNoopClose(files()),
-            BaseCombinedScanTask::new);
+        scanTasks =
+            CloseableIterable.transform(
+                CloseableIterable.withNoopClose(files()), BaseCombinedScanTask::new);
       } else {
         CloseableIterable<FileScanTask> splitFiles =
             TableScanUtil.splitFiles(

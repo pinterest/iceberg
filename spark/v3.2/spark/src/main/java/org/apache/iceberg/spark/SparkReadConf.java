@@ -192,7 +192,8 @@ public class SparkReadConf {
   }
 
   public boolean fileAsSplit() {
-    return confParser.booleanConf()
+    return confParser
+        .booleanConf()
         .option(SparkReadOptions.FILE_AS_SPLIT)
         .tableProperty(TableProperties.FILE_AS_SPLIT)
         .defaultValue(TableProperties.FILE_AS_SPLIT_DEFAULT)

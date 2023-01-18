@@ -45,9 +45,13 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
   @Override
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write",
-        TableProperties.DELETE_DISTRIBUTION_MODE, "range",
-        TableProperties.FILE_AS_SPLIT, "true");
+    return ImmutableMap.of(
+        TableProperties.DELETE_MODE,
+        "copy-on-write",
+        TableProperties.DELETE_DISTRIBUTION_MODE,
+        "range",
+        TableProperties.FILE_AS_SPLIT,
+        "true");
   }
 
   @Test
@@ -89,7 +93,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
     Snapshot currentSnapshot = table.currentSnapshot();
     validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(
             row(1, "hardware"),
             row(1, "hr"),

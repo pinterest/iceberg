@@ -292,11 +292,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     boolean allInputFilesMatchTablePartitioning =
         copyOnWriteScan.files().stream().allMatch(x -> x.file().specId() == table.spec().specId());
 
-    // check if the copy on write operation is happening within one partition
-    boolean allInputFilesInSamePartition =
-        copyOnWriteScan.files().stream().map(FileScanTask::spec).collect(Collectors.toSet()).size()
-            == 1;
-
     // check if all input files are sorted on table's current sort order
     boolean allInputFilesMatchTableSortOrder =
         copyOnWriteScan.files().stream()
@@ -311,11 +306,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
             distribution.ordering(),
             SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
 
-    boolean test =
-        allInputFilesMatchTablePartitioning
-            && allInputFilesInSamePartition
-            && allInputFilesMatchTableSortOrder
-            && requiredOrderingIsDefaultTableOrder;
-    return test;
+    return allInputFilesMatchTablePartitioning && allInputFilesMatchTableSortOrder
+        && requiredOrderingIsDefaultTableOrder;
   }
 }

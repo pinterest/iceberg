@@ -18,20 +18,31 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
-public class TestCopyOnWriteDelete extends TestDelete {
+
+public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
+  boolean fileAsSplit = false;
 
   public TestCopyOnWriteDelete(
       String catalogName,
@@ -43,6 +54,37 @@ public class TestCopyOnWriteDelete extends TestDelete {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
+  @Parameterized.Parameters(
+      name =
+          "catalogName = {0}, implementation = {1}, config = {2},"
+              + " format = {3}, vectorized = {4}, distributionMode = {5}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+        {
+            "spark_catalog",
+            SparkSessionCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default",
+                "clients", "1",
+                "parquet-enabled", "true",
+                "cache-enabled",
+                "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+            "parquet",
+            false,
+            TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
+        }
+    };
+  }
+
+  @After
+  public void removeTables() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS deleted_id");
+    sql("DROP TABLE IF EXISTS deleted_dep");
+  }
+
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
@@ -51,68 +93,299 @@ public class TestCopyOnWriteDelete extends TestDelete {
         TableProperties.DELETE_DISTRIBUTION_MODE,
         "range",
         TableProperties.FILE_AS_SPLIT,
-        "true");
+        String.valueOf(fileAsSplit));
   }
 
-  @Test
-  public void testDeleteWithRangePartitioningOptimization() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
 
+  /**
+   * Checks if there are unordered files, deleting a row using CoW
+   * will use shuffle and order the files for range partitioning when
+   * sort optimization for CoW is turned off through fileAsSplit.
+   */
+  @Test
+  public void testUnorderedFilesWithoutOptimization() throws NoSuchTableException {
+    unorderedFilesTest(false);
+  }
+
+  /**
+   * Checks if there are unordered files, deleting a row using CoW
+   * will use shuffle and order the files for range partitioning, even if
+   * sort optimization for CoW is turned on through fileAsSplit.
+   */
+  @Test
+  public void testUnorderedFilesWithOptimization() throws NoSuchTableException {
+    unorderedFilesTest(true);
+  }
+
+  /**
+   * Checks if there are ordered files, deleting a row using CoW
+   * will use shuffle and order the files for range partitioning, even if
+   * sort optimization for CoW is turned on through fileAsSplit.
+   */
+  @Test
+  public void testOrderedFilesWithoutOptimization() throws NoSuchTableException {
+    orderedFilesTest(false);
+  }
+
+  /**
+   * Checks if there are ordered files, deleting a row using CoW
+   * will not use shuffle and maintain existing order in files when
+   * sort optimization for CoW is turned on through fileAsSplit.
+   */
+  @Test
+  public void testOrderedFilesWithOptimization() throws NoSuchTableException {
+    orderedFilesTest(true);
+  }
+
+  /**
+   * Checks if there are ordered files, deleting a row using CoW
+   * will not use shuffle and maintain existing order in files when
+   * sort optimization for CoW is turned on through fileAsSplit, even when
+   * scan includes multiple partitions.
+   */
+  @Test
+  public void testOrderedFilesMultiPartitions() throws NoSuchTableException {
+    this.fileAsSplit = true;
     createAndInitPartitionedTable();
+
+    // enable write ordering to create sorted files
     sql("ALTER TABLE %s WRITE ORDERED BY %s", tableName, "id");
 
+    // set shuffle partitions to 1 to create required files
+    spark.conf().set("spark.sql.shuffle.partitions", "1");
+
+    // create unsorted files
     append(
-        new Employee(1, "hr"),
         new Employee(3, "hr"),
-        new Employee(4, "hr"),
-        new Employee(5, "hr"),
-        new Employee(6, "hr"),
-        new Employee(7, "hr"),
-        new Employee(8, "hr"),
-        new Employee(9, "hr"));
+        new Employee(1, "hr"));
     append(
-        new Employee(1, "hardware"),
+        new Employee(2, "hardware"),
+        new Employee(5, "hardware"),
+        new Employee(1, "hardware"));
+    append(
         new Employee(2, "hardware"),
         new Employee(3, "hardware"),
-        new Employee(4, "hardware"),
+        new Employee(4, "hardware"));
+
+    // check files are created as expected
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
+        ImmutableList.of(
+            3L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
+        ImmutableList.of(
+            3L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
+        ImmutableList.of(
+            2L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
+    );
+    validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
+
+    // set shuffle partitions to 4 to induce shuffling when possible
+    spark.conf().set("spark.sql.shuffle.partitions", "4");
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    // validate that more files are added than the deleted files
+    validateCopyOnWrite(currentSnapshot, "2", "2", "4");
+  }
+
+  private void unorderedFilesTest(boolean fileAsSplit) throws NoSuchTableException {
+    this.fileAsSplit = fileAsSplit;
+    createAndInitPartitionedTable();
+
+    // set shuffle partitions to 1 to create required files
+    spark.conf().set("spark.sql.shuffle.partitions", "1");
+
+    // create unsorted files
+    append(
+        new Employee(3, "hr"),
+        new Employee(1, "hr"));
+    append(
+        new Employee(2, "hardware"),
         new Employee(5, "hardware"),
-        new Employee(6, "hardware"),
-        new Employee(7, "hardware"),
-        new Employee(8, "hardware"),
-        new Employee(9, "hardware"),
-        new Employee(10, "hardware"));
+        new Employee(1, "hardware"));
 
-    List<Object[]> sortOrders = sql("SELECT sort_order_id from %s.files", tableName);
-    Assert.assertTrue(sortOrders.stream().allMatch(x -> (int) x[x.length - 1] == 1));
+    // check files are created as expected
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
+        ImmutableList.of(
+            3L,
+            0,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
+        ImmutableList.of(
+            2L,
+            0,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
+    );
+    validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
 
+    // enable write ordering to create sorted files
+    sql("ALTER TABLE %s WRITE ORDERED BY %s", tableName, "id");
+
+    // create sorted files
+    append(
+        new Employee(2, "hardware"),
+        new Employee(3, "hardware"),
+        new Employee(4, "hardware"));
+
+    validateCountBoundsAndSortIds(ImmutableList.<ImmutableList<Serializable>>builder()
+        .add(ImmutableList.of(
+            3L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())))
+        .addAll(expectedCountBoundsAndSortIds)
+        .build());
+
+    // set shuffle partitions to 4 to induce shuffling when possible
+    spark.conf().set("spark.sql.shuffle.partitions", "4");
     sql("DELETE FROM %s WHERE id = 2", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
-
+    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
-    assertEquals(
-        "Should have expected rows",
+    // validate that more files are added than the deleted files
+    validateCopyOnWrite(currentSnapshot, "1", "2", "4");
+  }
+
+  private void orderedFilesTest(boolean fileAsSplit) throws NoSuchTableException {
+    this.fileAsSplit = fileAsSplit;
+    createAndInitPartitionedTable();
+
+    // enable write ordering to create sorted files
+    sql("ALTER TABLE %s WRITE ORDERED BY %s", tableName, "id");
+
+    // set shuffle partitions to 1 to create required files
+    spark.conf().set("spark.sql.shuffle.partitions", "1");
+
+    // create unsorted files
+    append(
+        new Employee(3, "hr"),
+        new Employee(1, "hr"));
+    append(
+        new Employee(2, "hardware"),
+        new Employee(5, "hardware"),
+        new Employee(1, "hardware"));
+    append(
+        new Employee(2, "hardware"),
+        new Employee(3, "hardware"),
+        new Employee(4, "hardware"));
+
+    // check files are created as expected
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
         ImmutableList.of(
-            row(1, "hardware"),
-            row(1, "hr"),
-            row(3, "hardware"),
-            row(3, "hr"),
-            row(4, "hardware"),
-            row(4, "hr"),
-            row(5, "hardware"),
-            row(5, "hr"),
-            row(6, "hardware"),
-            row(6, "hr"),
-            row(7, "hardware"),
-            row(7, "hr"),
-            row(8, "hardware"),
-            row(8, "hr"),
-            row(9, "hardware"),
-            row(9, "hr"),
-            row(10, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+            3L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
+        ImmutableList.of(
+            3L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
+        ImmutableList.of(
+            2L,
+            1,
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+            ImmutableList.of(
+                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
+    );
+    validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
+
+    // set shuffle partitions to 4 to induce shuffling when possible
+    spark.conf().set("spark.sql.shuffle.partitions", "4");
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    // validate that more files are added than the deleted files
+    validateCopyOnWrite(currentSnapshot, "1", "2", fileAsSplit ? "2" : "4");
+  }
+
+  private void validateCountBoundsAndSortIds(ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds) {
+    List<Object[]> countBoundsAndSortIds = sql(
+        "select %s, %s, %s, %s from %s.files",
+        DataFile.RECORD_COUNT.name(),
+        DataFile.SORT_ORDER_ID.name(),
+        DataFile.LOWER_BOUNDS.name(),
+        DataFile.UPPER_BOUNDS.name(),
+        tableName);
+
+    Assert.assertEquals("Number of files mismatch", expectedCountBoundsAndSortIds.size(), countBoundsAndSortIds.size());
+    int i = 0;
+    for (ImmutableList<Serializable> expectedCountBoundsAndSortId : expectedCountBoundsAndSortIds) {
+      long recordCount = (Long) expectedCountBoundsAndSortId.get(0);
+      int sortId = (int) expectedCountBoundsAndSortId.get(1);
+      List<Object> lowerBounds = (List<Object>) expectedCountBoundsAndSortId.get(2);
+      List<Object> upperBounds = (List<Object>) expectedCountBoundsAndSortId.get(3);
+
+      Assert.assertEquals(recordCount, (long) countBoundsAndSortIds.get(i)[0]);
+      Assert.assertEquals(sortId, (int) countBoundsAndSortIds.get(i)[1]);
+      Assert.assertArrayEquals(lowerBounds.toArray(),
+          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(i)[2]).values().toArray());
+      Assert.assertArrayEquals(upperBounds.toArray(),
+          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(i)[3]).values().toArray());
+      ++i;
+    }
+  }
+
+  private void createAndInitPartitionedTable() {
+    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    initTable();
+  }
+
+  private void append(Employee... employees) throws NoSuchTableException {
+    List<Employee> input = Arrays.asList(employees);
+    Dataset<Row> inputDF = spark.createDataFrame(input, Employee.class);
+    inputDF.coalesce(1).writeTo(tableName).append();
   }
 }

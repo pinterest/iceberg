@@ -19,9 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;

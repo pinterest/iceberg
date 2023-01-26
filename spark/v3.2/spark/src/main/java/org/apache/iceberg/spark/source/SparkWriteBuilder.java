@@ -304,7 +304,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
             distribution.ordering(),
             SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
 
-    return allInputFilesMatchTablePartitioning && allInputFilesMatchTableSortOrder
+    return allInputFilesMatchTablePartitioning
+        && allInputFilesMatchTableSortOrder
         && requiredOrderingIsDefaultTableOrder;
   }
 }

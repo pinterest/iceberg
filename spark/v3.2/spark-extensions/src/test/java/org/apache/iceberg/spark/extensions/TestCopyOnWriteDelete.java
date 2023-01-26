@@ -204,15 +204,15 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 1", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
+    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
     Snapshot currentSnapshot = table.currentSnapshot();
 
     // validate that more files are added than the deleted files
-    validateCopyOnWrite(currentSnapshot, "2", "2", "4");
+    validateCopyOnWrite(currentSnapshot, "2", "2", "2");
   }
 
-  private void unorderedFilesTest(boolean fileAsSplit) throws NoSuchTableException {
-    this.fileAsSplit = fileAsSplit;
+  private void unorderedFilesTest(boolean processOneFilePerTask) throws NoSuchTableException {
+    this.fileAsSplit = processOneFilePerTask;
     createAndInitPartitionedTable();
 
     // set shuffle partitions to 1 to create required files
@@ -277,15 +277,15 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 2", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
+    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
     Snapshot currentSnapshot = table.currentSnapshot();
 
     // validate that more files are added than the deleted files
     validateCopyOnWrite(currentSnapshot, "1", "2", "4");
   }
 
-  private void orderedFilesTest(boolean fileAsSplit) throws NoSuchTableException {
-    this.fileAsSplit = fileAsSplit;
+  private void orderedFilesTest(boolean processOneFilePerTask) throws NoSuchTableException {
+    this.fileAsSplit = processOneFilePerTask;
     createAndInitPartitionedTable();
 
     // enable write ordering to create sorted files
@@ -344,11 +344,11 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s WHERE id = 2", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 4, Iterables.size(table.snapshots()));
+    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
     Snapshot currentSnapshot = table.currentSnapshot();
 
     // validate that more files are added than the deleted files
-    validateCopyOnWrite(currentSnapshot, "1", "2", fileAsSplit ? "2" : "4");
+    validateCopyOnWrite(currentSnapshot, "1", "2", processOneFilePerTask ? "2" : "4");
   }
 
   private void validateCountBoundsAndSortIds(ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds) {
@@ -361,20 +361,20 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
         tableName);
 
     Assert.assertEquals("Number of files mismatch", expectedCountBoundsAndSortIds.size(), countBoundsAndSortIds.size());
-    int i = 0;
+    int currentRow = 0;
     for (ImmutableList<Serializable> expectedCountBoundsAndSortId : expectedCountBoundsAndSortIds) {
       long recordCount = (Long) expectedCountBoundsAndSortId.get(0);
       int sortId = (int) expectedCountBoundsAndSortId.get(1);
       List<Object> lowerBounds = (List<Object>) expectedCountBoundsAndSortId.get(2);
       List<Object> upperBounds = (List<Object>) expectedCountBoundsAndSortId.get(3);
 
-      Assert.assertEquals(recordCount, (long) countBoundsAndSortIds.get(i)[0]);
-      Assert.assertEquals(sortId, (int) countBoundsAndSortIds.get(i)[1]);
+      Assert.assertEquals(recordCount, (long) countBoundsAndSortIds.get(currentRow)[0]);
+      Assert.assertEquals(sortId, (int) countBoundsAndSortIds.get(currentRow)[1]);
       Assert.assertArrayEquals(lowerBounds.toArray(),
-          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(i)[2]).values().toArray());
+          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(currentRow)[2]).values().toArray());
       Assert.assertArrayEquals(upperBounds.toArray(),
-          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(i)[3]).values().toArray());
-      ++i;
+          ((Map<Integer, byte[]>) countBoundsAndSortIds.get(currentRow)[3]).values().toArray());
+      ++currentRow;
     }
   }
 

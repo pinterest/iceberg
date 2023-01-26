@@ -287,8 +287,7 @@ public class SparkScanBuilder
             .ignoreResiduals()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema)
-            .includeColumnStats();
+            .project(expectedSchema);
 
     scan = configureSplitPlanning(scan);
 

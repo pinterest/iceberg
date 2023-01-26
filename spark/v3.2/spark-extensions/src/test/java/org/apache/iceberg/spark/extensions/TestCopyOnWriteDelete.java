@@ -40,7 +40,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-
 public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
   boolean fileAsSplit = false;
 
@@ -60,21 +59,25 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
               + " format = {3}, vectorized = {4}, distributionMode = {5}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {
-            "spark_catalog",
-            SparkSessionCatalog.class.getName(),
-            ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default",
-                "clients", "1",
-                "parquet-enabled", "true",
-                "cache-enabled",
-                "false" // Spark will delete tables using v1, leaving the cache out of sync
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "true",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
             ),
-            "parquet",
-            false,
-            TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
-        }
+        "parquet",
+        false,
+        TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
+      }
     };
   }
 
@@ -96,11 +99,9 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
         String.valueOf(fileAsSplit));
   }
 
-
   /**
-   * Checks if there are unordered files, deleting a row using CoW
-   * will use shuffle and order the files for range partitioning when
-   * sort optimization for CoW is turned off through fileAsSplit.
+   * Checks if there are unordered files, deleting a row using CoW will use shuffle and order the
+   * files for range partitioning when sort optimization for CoW is turned off through fileAsSplit.
    */
   @Test
   public void testUnorderedFilesWithoutOptimization() throws NoSuchTableException {
@@ -108,9 +109,9 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
   }
 
   /**
-   * Checks if there are unordered files, deleting a row using CoW
-   * will use shuffle and order the files for range partitioning, even if
-   * sort optimization for CoW is turned on through fileAsSplit.
+   * Checks if there are unordered files, deleting a row using CoW will use shuffle and order the
+   * files for range partitioning, even if sort optimization for CoW is turned on through
+   * fileAsSplit.
    */
   @Test
   public void testUnorderedFilesWithOptimization() throws NoSuchTableException {
@@ -118,9 +119,9 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
   }
 
   /**
-   * Checks if there are ordered files, deleting a row using CoW
-   * will use shuffle and order the files for range partitioning, even if
-   * sort optimization for CoW is turned on through fileAsSplit.
+   * Checks if there are ordered files, deleting a row using CoW will use shuffle and order the
+   * files for range partitioning, even if sort optimization for CoW is turned on through
+   * fileAsSplit.
    */
   @Test
   public void testOrderedFilesWithoutOptimization() throws NoSuchTableException {
@@ -128,9 +129,8 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
   }
 
   /**
-   * Checks if there are ordered files, deleting a row using CoW
-   * will not use shuffle and maintain existing order in files when
-   * sort optimization for CoW is turned on through fileAsSplit.
+   * Checks if there are ordered files, deleting a row using CoW will not use shuffle and maintain
+   * existing order in files when sort optimization for CoW is turned on through fileAsSplit.
    */
   @Test
   public void testOrderedFilesWithOptimization() throws NoSuchTableException {
@@ -138,10 +138,9 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
   }
 
   /**
-   * Checks if there are ordered files, deleting a row using CoW
-   * will not use shuffle and maintain existing order in files when
-   * sort optimization for CoW is turned on through fileAsSplit, even when
-   * scan includes multiple partitions.
+   * Checks if there are ordered files, deleting a row using CoW will not use shuffle and maintain
+   * existing order in files when sort optimization for CoW is turned on through fileAsSplit, even
+   * when scan includes multiple partitions.
    */
   @Test
   public void testOrderedFilesMultiPartitions() throws NoSuchTableException {
@@ -155,48 +154,40 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     spark.conf().set("spark.sql.shuffle.partitions", "1");
 
     // create unsorted files
-    append(
-        new Employee(3, "hr"),
-        new Employee(1, "hr"));
-    append(
-        new Employee(2, "hardware"),
-        new Employee(5, "hardware"),
-        new Employee(1, "hardware"));
-    append(
-        new Employee(2, "hardware"),
-        new Employee(3, "hardware"),
-        new Employee(4, "hardware"));
+    append(new Employee(3, "hr"), new Employee(1, "hr"));
+    append(new Employee(2, "hardware"), new Employee(5, "hardware"), new Employee(1, "hardware"));
+    append(new Employee(2, "hardware"), new Employee(3, "hardware"), new Employee(4, "hardware"));
 
     // check files are created as expected
-    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds =
         ImmutableList.of(
-            3L,
-            1,
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                3L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
-        ImmutableList.of(
-            3L,
-            1,
+                3L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
-        ImmutableList.of(
-            2L,
-            1,
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
-    );
+                2L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array())));
     validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
 
     // set shuffle partitions to 4 to induce shuffling when possible
@@ -219,58 +210,52 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     spark.conf().set("spark.sql.shuffle.partitions", "1");
 
     // create unsorted files
-    append(
-        new Employee(3, "hr"),
-        new Employee(1, "hr"));
-    append(
-        new Employee(2, "hardware"),
-        new Employee(5, "hardware"),
-        new Employee(1, "hardware"));
+    append(new Employee(3, "hr"), new Employee(1, "hr"));
+    append(new Employee(2, "hardware"), new Employee(5, "hardware"), new Employee(1, "hardware"));
 
     // check files are created as expected
-    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds =
         ImmutableList.of(
-            3L,
-            0,
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                3L,
+                0,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
-        ImmutableList.of(
-            2L,
-            0,
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
-    );
+                2L,
+                0,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array())));
     validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
 
     // enable write ordering to create sorted files
     sql("ALTER TABLE %s WRITE ORDERED BY %s", tableName, "id");
 
     // create sorted files
-    append(
-        new Employee(2, "hardware"),
-        new Employee(3, "hardware"),
-        new Employee(4, "hardware"));
+    append(new Employee(2, "hardware"), new Employee(3, "hardware"), new Employee(4, "hardware"));
 
-    validateCountBoundsAndSortIds(ImmutableList.<ImmutableList<Serializable>>builder()
-        .add(ImmutableList.of(
-            3L,
-            1,
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())))
-        .addAll(expectedCountBoundsAndSortIds)
-        .build());
+    validateCountBoundsAndSortIds(
+        ImmutableList.<ImmutableList<Serializable>>builder()
+            .add(
+                ImmutableList.of(
+                    3L,
+                    1,
+                    ImmutableList.of(
+                        Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                        Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                    ImmutableList.of(
+                        Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                        Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())))
+            .addAll(expectedCountBoundsAndSortIds)
+            .build());
 
     // set shuffle partitions to 4 to induce shuffling when possible
     spark.conf().set("spark.sql.shuffle.partitions", "4");
@@ -295,48 +280,40 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     spark.conf().set("spark.sql.shuffle.partitions", "1");
 
     // create unsorted files
-    append(
-        new Employee(3, "hr"),
-        new Employee(1, "hr"));
-    append(
-        new Employee(2, "hardware"),
-        new Employee(5, "hardware"),
-        new Employee(1, "hardware"));
-    append(
-        new Employee(2, "hardware"),
-        new Employee(3, "hardware"),
-        new Employee(4, "hardware"));
+    append(new Employee(3, "hr"), new Employee(1, "hr"));
+    append(new Employee(2, "hardware"), new Employee(5, "hardware"), new Employee(1, "hardware"));
+    append(new Employee(2, "hardware"), new Employee(3, "hardware"), new Employee(4, "hardware"));
 
     // check files are created as expected
-    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds = ImmutableList.of(
+    ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds =
         ImmutableList.of(
-            3L,
-            1,
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                3L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 2).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 4).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
-        ImmutableList.of(
-            3L,
-            1,
+                3L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
             ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 5).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hardware").array())),
-        ImmutableList.of(
-            2L,
-            1,
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
-            ImmutableList.of(
-                Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
-                Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()))
-    );
+                2L,
+                1,
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 1).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array()),
+                ImmutableList.of(
+                    Conversions.toByteBuffer(Type.TypeID.INTEGER, 3).array(),
+                    Conversions.toByteBuffer(Type.TypeID.STRING, "hr").array())));
     validateCountBoundsAndSortIds(expectedCountBoundsAndSortIds);
 
     // set shuffle partitions to 4 to induce shuffling when possible
@@ -351,16 +328,21 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
     validateCopyOnWrite(currentSnapshot, "1", "2", processOneFilePerTask ? "2" : "4");
   }
 
-  private void validateCountBoundsAndSortIds(ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds) {
-    List<Object[]> countBoundsAndSortIds = sql(
-        "select %s, %s, %s, %s from %s.files",
-        DataFile.RECORD_COUNT.name(),
-        DataFile.SORT_ORDER_ID.name(),
-        DataFile.LOWER_BOUNDS.name(),
-        DataFile.UPPER_BOUNDS.name(),
-        tableName);
+  private void validateCountBoundsAndSortIds(
+      ImmutableList<ImmutableList<Serializable>> expectedCountBoundsAndSortIds) {
+    List<Object[]> countBoundsAndSortIds =
+        sql(
+            "select %s, %s, %s, %s from %s.files",
+            DataFile.RECORD_COUNT.name(),
+            DataFile.SORT_ORDER_ID.name(),
+            DataFile.LOWER_BOUNDS.name(),
+            DataFile.UPPER_BOUNDS.name(),
+            tableName);
 
-    Assert.assertEquals("Number of files mismatch", expectedCountBoundsAndSortIds.size(), countBoundsAndSortIds.size());
+    Assert.assertEquals(
+        "Number of files mismatch",
+        expectedCountBoundsAndSortIds.size(),
+        countBoundsAndSortIds.size());
     int currentRow = 0;
     for (ImmutableList<Serializable> expectedCountBoundsAndSortId : expectedCountBoundsAndSortIds) {
       long recordCount = (Long) expectedCountBoundsAndSortId.get(0);
@@ -370,9 +352,11 @@ public class TestCopyOnWriteDelete extends SparkRowLevelOperationsTestBase {
 
       Assert.assertEquals(recordCount, (long) countBoundsAndSortIds.get(currentRow)[0]);
       Assert.assertEquals(sortId, (int) countBoundsAndSortIds.get(currentRow)[1]);
-      Assert.assertArrayEquals(lowerBounds.toArray(),
+      Assert.assertArrayEquals(
+          lowerBounds.toArray(),
           ((Map<Integer, byte[]>) countBoundsAndSortIds.get(currentRow)[2]).values().toArray());
-      Assert.assertArrayEquals(upperBounds.toArray(),
+      Assert.assertArrayEquals(
+          upperBounds.toArray(),
           ((Map<Integer, byte[]>) countBoundsAndSortIds.get(currentRow)[3]).values().toArray());
       ++currentRow;
     }

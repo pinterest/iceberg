@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.parquet.Strings;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -52,6 +53,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final String nameMapping;
   private final boolean caseSensitive;
   private final int batchSize;
+  private final boolean isThriftBackedTable;
 
   BatchDataReader(
       CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
@@ -60,6 +62,8 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
     this.batchSize = size;
+    this.isThriftBackedTable =
+        !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
   }
 
   @Override
@@ -101,7 +105,8 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
               // without worrying about subsequent reads clobbering over each other. This improves
               // read performance as every batch read doesn't have to pay the cost of allocating
               // memory.
-              .reuseContainers();
+              .reuseContainers()
+              .isThriftBackedTable(isThriftBackedTable);
 
       if (nameMapping != null) {
         builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

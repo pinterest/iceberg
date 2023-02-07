@@ -237,7 +237,7 @@ public class ParquetUtil {
     }
 
     if (nameMapping != null) {
-      return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
+      return ParquetSchemaUtil.applyNameMapping(type, nameMapping, ignoreFileIds);
     }
 
     return ParquetSchemaUtil.addFallbackIds(type);

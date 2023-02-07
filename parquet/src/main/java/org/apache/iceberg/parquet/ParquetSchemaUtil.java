@@ -133,6 +133,13 @@ public class ParquetSchemaUtil {
     return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping));
   }
 
+  public static MessageType applyNameMapping(
+      MessageType fileSchema, NameMapping nameMapping, boolean caseInsensitiveLookup) {
+    return (MessageType)
+        ParquetTypeVisitor.visit(
+            fileSchema, new ApplyNameMapping(nameMapping, caseInsensitiveLookup));
+  }
+
   public static class HasIds extends ParquetTypeVisitor<Boolean> {
     @Override
     public Boolean message(MessageType message, List<Boolean> fields) {

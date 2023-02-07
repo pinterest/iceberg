@@ -88,7 +88,7 @@ class ReadConf<T> {
       NameMapping nameMappingFromExpectedSchema = MappingUtil.create(expectedSchema);
       fileSchema =
           ParquetSchemaUtil.applyNameMapping(
-              RemoveIds.removeIds(fileSchema), nameMappingFromExpectedSchema);
+              RemoveIds.removeIds(fileSchema), nameMappingFromExpectedSchema, true);
     }
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       typeWithIds = fileSchema;

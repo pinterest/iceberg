@@ -39,9 +39,15 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   private static final String MAP_VALUE_NAME = "value";
   private final NameMapping nameMapping;
   private final Deque<String> fieldNames = Lists.newLinkedList();
+  private final boolean caseInsensitiveLookup;
 
   ApplyNameMapping(NameMapping nameMapping) {
+    this(nameMapping, false);
+  }
+
+  ApplyNameMapping(NameMapping nameMapping, boolean caseInsensitiveLookup) {
     this.nameMapping = nameMapping;
+    this.caseInsensitiveLookup = caseInsensitiveLookup;
   }
 
   @Override
@@ -155,6 +161,11 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
 
   @Override
   protected String[] currentPath() {
+    if (this.caseInsensitiveLookup) {
+      return Lists.newArrayList(fieldNames.descendingIterator()).stream()
+          .map(String::toLowerCase)
+          .toArray(String[]::new);
+    }
     return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
   }
 

@@ -518,6 +518,9 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.forTable(targetTable);
       boolean isThriftBackedTable =
           !Strings.isNullOrEmpty(targetTable.properties().get(TableProperties.THRIFT_TYPE));
+      if (isThriftBackedTable) {
+        conf.set(TableMigrationUtil.IGNORE_PARQUET_FIELD_IDS, "true");
+      }
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping =
           isThriftBackedTable

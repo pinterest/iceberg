@@ -85,7 +85,8 @@ public class SparkParquetReaders {
     if (isThriftBackedTable) {
       NameMapping nameMapping = MappingUtil.create(expectedSchema);
       updatedFileSchema =
-          ParquetSchemaUtil.applyNameMapping(RemoveIds.removeIds(fileSchema), nameMapping);
+          ParquetSchemaUtil.applyNameMappingCaseInsensitive(
+              RemoveIds.removeIds(fileSchema), nameMapping);
     }
 
     return buildReader(expectedSchema, updatedFileSchema, idToConstant);

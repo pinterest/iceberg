@@ -237,6 +237,9 @@ public class ParquetUtil {
     }
 
     if (nameMapping != null) {
+      if (ignoreFileIds) {
+        return ParquetSchemaUtil.applyNameMappingCaseInsensitive(type, nameMapping);
+      }
       return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
     }
 

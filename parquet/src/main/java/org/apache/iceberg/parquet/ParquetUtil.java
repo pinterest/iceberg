@@ -237,7 +237,10 @@ public class ParquetUtil {
     }
 
     if (nameMapping != null) {
-      return ParquetSchemaUtil.applyNameMapping(type, nameMapping, ignoreFileIds);
+      if (ignoreFileIds) {
+        return ParquetSchemaUtil.applyNameMappingCaseInsensitive(type, nameMapping);
+      }
+      return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
     }
 
     return ParquetSchemaUtil.addFallbackIds(type);

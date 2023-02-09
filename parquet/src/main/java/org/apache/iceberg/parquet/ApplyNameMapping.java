@@ -164,4 +164,8 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     list.add(name);
     return list.toArray(new String[0]);
   }
+
+  Deque<String> getFieldNames() {
+    return fieldNames;
+  }
 }

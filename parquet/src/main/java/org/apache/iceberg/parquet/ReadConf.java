@@ -87,7 +87,7 @@ class ReadConf<T> {
     if (isThriftBackedTable) {
       NameMapping nameMappingFromExpectedSchema = MappingUtil.create(expectedSchema);
       fileSchema =
-          ParquetSchemaUtil.applyNameMapping(
+          ParquetSchemaUtil.applyNameMappingCaseInsensitive(
               RemoveIds.removeIds(fileSchema), nameMappingFromExpectedSchema);
     }
     if (ParquetSchemaUtil.hasIds(fileSchema)) {

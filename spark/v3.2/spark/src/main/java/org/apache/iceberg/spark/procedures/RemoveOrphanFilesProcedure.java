@@ -55,6 +55,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         ProcedureParameter.optional("location", DataTypes.StringType),
         ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
         ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+        ProcedureParameter.optional("file_list_view", DataTypes.StringType),
         ProcedureParameter.optional("equal_schemes", STRING_MAP),
         ProcedureParameter.optional("equal_authorities", STRING_MAP),
         ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),

@@ -27,6 +27,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -102,6 +103,38 @@ public class SparkScanBuilder
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
+    List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
+
+    for (Filter filter : filters) {
+      Expression expr = null;
+      try {
+        expr = SparkFilters.convert(filter);
+      } catch (IllegalArgumentException e) {
+        // converting to Iceberg Expression failed, so this expression cannot be pushed down
+      }
+
+      if (expr != null) {
+        try {
+          Binder.bind(schema.asStruct(), expr, caseSensitive);
+          expressions.add(expr);
+          pushed.add(filter);
+        } catch (ValidationException e) {
+          // binding to the table schema failed, so this expression cannot be pushed down
+        }
+      }
+    }
+
+    this.filterExpressions = expressions;
+    this.pushedFilters = pushed.toArray(new Filter[0]);
+
+    // Spark doesn't support residuals per task, so return all filters
+    // to get Spark to handle record-level filtering
+    return filters;
+  }
+
+  // @Override
+  public Filter[] pushFilters1(Filter[] filters) {
     // there are 3 kinds of filters:
     // (1) filters that can be pushed down completely and don't have to evaluated by Spark
     //     (e.g. filters that select entire partitions)

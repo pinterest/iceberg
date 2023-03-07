@@ -27,9 +27,9 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -51,6 +51,8 @@ import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkScanBuilder
     implements ScanBuilder,
@@ -58,6 +60,7 @@ public class SparkScanBuilder
         SupportsPushDownRequiredColumns,
         SupportsReportStatistics {
 
+  private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final SparkSession spark;
@@ -99,34 +102,47 @@ public class SparkScanBuilder
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
+    // there are 3 kinds of filters:
+    // (1) filters that can be pushed down completely and don't have to evaluated by Spark
+    //     (e.g. filters that select entire partitions)
+    // (2) filters that can be pushed down partially and require record-level filtering in Spark
+    //     (e.g. filters that may select some but not necessarily all rows in a file)
+    // (3) filters that can't be pushed down at all and have to be evaluated by Spark
+    //     (e.g. unsupported filters)
+    // filters (1) and (2) are used prune files during job planning in Iceberg
+    // filters (2) and (3) form a set of post scan filters and must be evaluated by Spark
+
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = null;
       try {
-        expr = SparkFilters.convert(filter);
-      } catch (IllegalArgumentException e) {
-        // converting to Iceberg Expression failed, so this expression cannot be pushed down
-      }
+        Expression expr = SparkFilters.convert(filter);
 
-      if (expr != null) {
-        try {
+        if (expr != null) {
+          // try binding the expression to ensure it can be pushed down
           Binder.bind(schema.asStruct(), expr, caseSensitive);
           expressions.add(expr);
-          pushed.add(filter);
-        } catch (ValidationException e) {
-          // binding to the table schema failed, so this expression cannot be pushed down
+          pushableFilters.add(filter);
         }
+
+        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+          postScanFilters.add(filter);
+        } else {
+          LOG.info("Evaluating completely on Iceberg side: {}", filter);
+        }
+
+      } catch (Exception e) {
+        LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
+        postScanFilters.add(filter);
       }
     }
 
     this.filterExpressions = expressions;
-    this.pushedFilters = pushed.toArray(new Filter[0]);
+    this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
-    // Spark doesn't support residuals per task, so return all filters
-    // to get Spark to handle record-level filtering
-    return filters;
+    return postScanFilters.toArray(new Filter[0]);
   }
 
   @Override

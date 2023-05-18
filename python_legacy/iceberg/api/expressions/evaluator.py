@@ -18,6 +18,8 @@
 import threading
 from datetime import date, datetime
 
+import pytz
+
 from .binder import Binder
 from .expressions import ExpressionVisitors
 
@@ -95,5 +97,10 @@ class Evaluator(object):
         def convert_for_lit(self, ref_val):
             if type(ref_val) == date:
                 return (datetime.combine(ref_val, datetime.min.time()) - datetime.utcfromtimestamp(0)).days
+            if type(ref_val) == datetime:
+                LOCAL_EPOCH = datetime.utcfromtimestamp(0)
+                if ref_val.tzinfo is not None:
+                    LOCAL_EPOCH = LOCAL_EPOCH.replace(tzinfo=pytz.UTC)
+                return int((ref_val - LOCAL_EPOCH).total_seconds() * 1000000)
             else:
                 return ref_val

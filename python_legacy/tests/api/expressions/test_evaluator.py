@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 import iceberg.api.expressions as exp
 from iceberg.api.expressions import Literal
@@ -24,7 +24,7 @@ from iceberg.api.types import (FloatType,
                                NestedField,
                                StringType,
                                StructType,
-                               DateType)
+                               DateType, TimestampType)
 from iceberg.core import PartitionData
 from iceberg.exceptions import ValidationException
 from pytest import raises
@@ -163,6 +163,39 @@ def test_nan_errors(row_of):
     evaluator = exp.evaluator.Evaluator(struct, exp.expressions.Expressions.not_nan("f"))
     with raises(NotImplementedError):
         evaluator.eval(row_of((123.4,)))
+
+
+def test_timestamp_type_eval():
+    partition_type = StructType.of([
+        NestedField.optional(3, "timestamp_col", TimestampType.with_timezone()),
+    ])
+
+    p = PartitionData(partition_type=partition_type)
+    p.data = [('timestamp_col', datetime(2023, 5, 1, 23, 50, tzinfo=timezone.utc))]
+
+    # equal
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.equal('timestamp_col', Literal.of("2023-05-01T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
+
+    # not equal
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.not_equal('timestamp_col', Literal.of("2023-05-02T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
+
+    # less than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.less_than('timestamp_col', Literal.of("2023-05-03T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
+
+    # less or equal than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.less_than_or_equal('timestamp_col', Literal.of("2023-05-03T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
+
+    # greater than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.greater_than('timestamp_col', Literal.of("2023-04-01T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
+
+    # greater or equal than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.greater_than_or_equal('timestamp_col', Literal.of("2023-04-01T23:50:00.000+00:00").to(TimestampType.with_timezone())))
+    assert evaluator.eval(p)
 
 
 def test_date_type_eval():

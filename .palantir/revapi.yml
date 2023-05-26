@@ -733,6 +733,27 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String)"
       justification: "Removing deprecations for 1.3.0"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean)"
+      new: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, boolean)"
+      justification: "pinterest custom changes"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int)"
+      new: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int, boolean)"
+      justification: "pinterest custom changes"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

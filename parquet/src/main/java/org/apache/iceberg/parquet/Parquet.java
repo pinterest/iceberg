@@ -930,6 +930,7 @@ public class Parquet {
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
+    private boolean isThriftBackedTable = false;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1019,6 +1020,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder isThriftBackedTable(boolean thriftBackedTable) {
+      this.isThriftBackedTable = thriftBackedTable;
+      return this;
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null || batchedReaderFunc != null) {
@@ -1058,7 +1064,8 @@ public class Parquet {
               filter,
               reuseContainers,
               caseSensitive,
-              maxRecordsPerBatch);
+              maxRecordsPerBatch,
+              isThriftBackedTable);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file,
@@ -1068,7 +1075,8 @@ public class Parquet {
               nameMapping,
               filter,
               reuseContainers,
-              caseSensitive);
+              caseSensitive,
+              isThriftBackedTable);
         }
       }
 

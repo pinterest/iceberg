@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -39,6 +41,7 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.parquet.RemoveIds;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -71,6 +74,22 @@ public class SparkParquetReaders {
   public static ParquetValueReader<InternalRow> buildReader(
       Schema expectedSchema, MessageType fileSchema) {
     return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<InternalRow> buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      boolean isThriftBackedTable) {
+    MessageType updatedFileSchema = fileSchema;
+    if (isThriftBackedTable) {
+      NameMapping nameMapping = MappingUtil.create(expectedSchema);
+      updatedFileSchema =
+          ParquetSchemaUtil.applyNameMapping(RemoveIds.removeIds(fileSchema), nameMapping);
+    }
+
+    return buildReader(expectedSchema, updatedFileSchema, idToConstant);
   }
 
   @SuppressWarnings("unchecked")
@@ -197,11 +216,12 @@ public class SparkParquetReaders {
     public ParquetValueReader<?> list(
         Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       String[] repeatedPath = currentPath();
-
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
-
       Type elementType = ParquetSchemaUtil.determineListElementType(array);
+      final boolean isTwoLevelList = elementType.isRepetition(Type.Repetition.REPEATED);
+
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - (isTwoLevelList ? 0 : 1);
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - (isTwoLevelList ? 0 : 1);
+
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
       return new ArrayReader<>(

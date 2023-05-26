@@ -30,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.parquet.Strings;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -40,7 +41,12 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
 
   RowDataReader(
       ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(table, task, expectedSchema, caseSensitive);
+    super(
+        table,
+        task,
+        expectedSchema,
+        caseSensitive,
+        !Strings.isNullOrEmpty(table.properties().get("thrift_type")));
   }
 
   @Override

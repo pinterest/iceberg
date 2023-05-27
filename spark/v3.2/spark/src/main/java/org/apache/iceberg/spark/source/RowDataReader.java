@@ -26,6 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
@@ -46,7 +47,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
         task,
         expectedSchema,
         caseSensitive,
-        !Strings.isNullOrEmpty(table.properties().get("thrift_type")));
+        !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE)));
   }
 
   @Override

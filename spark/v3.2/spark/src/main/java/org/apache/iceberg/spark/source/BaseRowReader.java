@@ -39,9 +39,22 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
+  private final boolean isThriftBackedTable;
+
   BaseRowReader(
       Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     super(table, taskGroup, expectedSchema, caseSensitive);
+    this.isThriftBackedTable = false;
+  }
+
+  BaseRowReader(
+      Table table,
+      ScanTaskGroup<T> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean isThriftBackedTable) {
+    super(table, taskGroup, expectedSchema, caseSensitive);
+    this.isThriftBackedTable = isThriftBackedTable;
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -90,10 +103,13 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .split(start, length)
         .project(readSchema)
         .createReaderFunc(
-            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+            fileSchema ->
+                SparkParquetReaders.buildReader(
+                    readSchema, fileSchema, idToConstant, isThriftBackedTable))
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
+        .isThriftBackedTable(isThriftBackedTable)
         .build();
   }
 

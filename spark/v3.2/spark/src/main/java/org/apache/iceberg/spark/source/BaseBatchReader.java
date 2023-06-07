@@ -51,7 +51,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       int batchSize) {
     super(table, taskGroup, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
-    this.isThriftBackedTable = !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
+    this.isThriftBackedTable =
+        !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(

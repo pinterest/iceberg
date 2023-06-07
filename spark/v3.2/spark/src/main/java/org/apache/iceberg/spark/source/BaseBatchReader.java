@@ -26,6 +26,7 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -35,10 +36,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.parquet.Strings;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
+  private final boolean isThriftBackedTable;
 
   BaseBatchReader(
       Table table,
@@ -48,6 +51,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       int batchSize) {
     super(table, taskGroup, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
+    this.isThriftBackedTable =
+        !Strings.isNullOrEmpty(table.properties().get(TableProperties.THRIFT_TYPE));
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -96,6 +101,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
         .reuseContainers()
         .withNameMapping(nameMapping())
+        .isThriftBackedTable(isThriftBackedTable)
         .build();
   }
 

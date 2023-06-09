@@ -29,6 +29,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -42,6 +43,7 @@ class SparkBatch implements Batch {
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
+  private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
@@ -52,12 +54,14 @@ class SparkBatch implements Batch {
       JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
+      Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
+    this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
@@ -81,6 +85,7 @@ class SparkBatch implements Batch {
             index ->
                 partitions[index] =
                     new SparkInputPartition(
+                        groupingKeyType,
                         taskGroups.get(index),
                         tableBroadcast,
                         expectedSchemaString,

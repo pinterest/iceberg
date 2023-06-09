@@ -45,4 +45,9 @@ public class SparkSQLProperties {
 
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
+
+  // Controls whether to preserve the existing grouping of data while planning splits
+  public static final String PRESERVE_DATA_GROUPING =
+      "spark.sql.iceberg.planning.preserve-data-grouping";
+  public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 }

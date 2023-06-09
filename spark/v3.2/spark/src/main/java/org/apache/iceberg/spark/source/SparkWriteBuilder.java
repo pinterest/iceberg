@@ -287,13 +287,13 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   private boolean skipOrderingAndDistribution(OrderedDistribution distribution) {
     // check if all input files have same partitioning as current table partitioning
-    if (!copyOnWriteScan.files().stream()
+    if (!copyOnWriteScan.tasks().stream()
         .allMatch(x -> x.file().specId() == table.spec().specId())) {
       return false;
     }
 
     // check if all input files are sorted on table's current sort order
-    if (!copyOnWriteScan.files().stream()
+    if (!copyOnWriteScan.tasks().stream()
         .allMatch(
             x ->
                 x.file().sortOrderId() != null

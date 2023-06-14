@@ -98,7 +98,9 @@ public class TestPinterestCopyOnWriteDelete extends SparkRowLevelOperationsTestB
         TableProperties.DELETE_DISTRIBUTION_MODE,
         DistributionMode.RANGE.modeName(),
         TableProperties.FILE_AS_SPLIT,
-        String.valueOf(fileAsSplit));
+        String.valueOf(fileAsSplit),
+        TableProperties.SPLIT_OPEN_FILE_COST,
+        String.valueOf(999999999));
   }
 
   /**

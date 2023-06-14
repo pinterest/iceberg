@@ -225,4 +225,12 @@ public class SparkReadConf {
   public Long endTimestamp() {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
   }
+
+  public boolean preserveDataGrouping() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.PRESERVE_DATA_GROUPING)
+        .defaultValue(SparkSQLProperties.PRESERVE_DATA_GROUPING_DEFAULT)
+        .parse();
+  }
 }

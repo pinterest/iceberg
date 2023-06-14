@@ -137,6 +137,9 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+      url "https://artifacts-prod-use1.pinadmin.com/artifactory/maven_thirdparty-jar-bazel-prod-local"
+    }
   }
 }
 

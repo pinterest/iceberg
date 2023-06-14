@@ -20,8 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -104,11 +105,16 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected abstract List<CombinedScanTask> tasks();
+  protected Types.StructType groupingKeyType() {
+    return Types.StructType.of();
+  }
+
+  protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema, hashCode());
+    return new SparkBatch(
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
   }
 
   @Override
@@ -142,23 +148,34 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     // estimate stats using snapshot summary only for partitioned tables (metadata tables are
     // unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
-      LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords =
-          PropertyUtil.propertyAsLong(
-              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      LOG.debug(
+          "Using snapshot {} metadata to estimate statistics for table {}",
+          snapshot.snapshotId(),
+          table.name());
+      long totalRecords = totalRecords(snapshot);
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
-    long rowsCount = tasks().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount);
   }
 
+  private long totalRecords(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+  }
+
   @Override
   public String description() {
-    String filters =
-        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
-    return String.format("%s [filters=%s]", table, filters);
+    String groupingKeyFieldNamesAsString =
+        groupingKeyType().fields().stream()
+            .map(Types.NestedField::name)
+            .collect(Collectors.joining(", "));
+
+    return String.format(
+        "%s [filters=%s, groupedBy=%s]",
+        table(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
   }
 
   @Override

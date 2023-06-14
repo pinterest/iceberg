@@ -27,6 +27,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -46,12 +47,14 @@ class SparkChangelogBatch implements Batch {
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
+  private final Types.StructType groupingKeyType;
   private final int scanHashCode;
 
   SparkChangelogBatch(
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
+      Types.StructType groupingKeyType,
       List<ScanTaskGroup<ChangelogScanTask>> taskGroups,
       Schema expectedSchema,
       int scanHashCode) {
@@ -61,6 +64,7 @@ class SparkChangelogBatch implements Batch {
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
+    this.groupingKeyType = groupingKeyType;
     this.scanHashCode = scanHashCode;
   }
 
@@ -79,6 +83,7 @@ class SparkChangelogBatch implements Batch {
             index ->
                 partitions[index] =
                     new SparkInputPartition(
+                        groupingKeyType,
                         taskGroups.get(index),
                         tableBroadcast,
                         expectedSchemaString,

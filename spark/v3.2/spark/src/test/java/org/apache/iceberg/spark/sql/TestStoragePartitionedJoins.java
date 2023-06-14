@@ -137,49 +137,57 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
     checkJoin("binary_col", "BINARY", "bucket(8, binary_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithYearsOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "years(timestamp_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithYearsOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "years(date_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithMonthsOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "months(timestamp_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithMonthsOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "months(date_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithDaysOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "days(timestamp_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithDaysOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "days(date_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithHoursOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "hours(timestamp_col)");
   }
 
-  @Ignore("TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
+  @Ignore(
+      "TODO: Re-enable after backporting support for time related transform functions in iceberg v3.2")
   @Test
   public void testJoinsWithMultipleTransformTypes() throws NoSuchTableException {
     String createTableStmt =

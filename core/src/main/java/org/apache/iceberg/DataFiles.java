@@ -58,12 +58,17 @@ public class DataFiles {
   }
 
   static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
+    return fillFromPath(spec, partitionPath, reuse, "/");
+  }
+
+  static PartitionData fillFromPath(
+      PartitionSpec spec, String partitionPath, PartitionData reuse, String partitionPathSplitter) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
     }
 
-    String[] partitions = partitionPath.split("/", -1);
+    String[] partitions = partitionPath.split(partitionPathSplitter, -1);
     Preconditions.checkArgument(
         partitions.length <= spec.fields().size(),
         "Invalid partition data, too many fields (expecting %s): %s",
@@ -239,11 +244,16 @@ public class DataFiles {
     }
 
     public Builder withPartitionPath(String newPartitionPath) {
+      return withPartitionPath(newPartitionPath, "/");
+    }
+
+    public Builder withPartitionPath(String newPartitionPath, String newPartitionPathSplitter) {
       Preconditions.checkArgument(
           isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
       if (!newPartitionPath.isEmpty()) {
-        this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+        this.partitionData =
+            fillFromPath(spec, newPartitionPath, partitionData, newPartitionPathSplitter);
       }
       return this;
     }

@@ -50,6 +50,8 @@ import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
   public static final String IGNORE_PARQUET_FIELD_IDS = "ignore.parquet.file.ids";
+  public static final String PINTEREST_CUSTOM_PARTITION_SPLITTER =
+      "pinterest.custom.partition.splitter";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -95,11 +97,12 @@ public class TableMigrationUtil {
       int parallelism) {
     ExecutorService service = null;
     try {
+      String partitionKeySplitter = conf.get(PINTEREST_CUSTOM_PARTITION_SPLITTER, "/");
       String partitionKey =
           spec.fields().stream()
               .map(PartitionField::name)
               .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-              .collect(Collectors.joining("/"));
+              .collect(Collectors.joining(partitionKeySplitter));
 
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -121,7 +124,13 @@ public class TableMigrationUtil {
             index -> {
               Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
+                  buildDataFile(
+                      fileStatus.get(index),
+                      partitionKey,
+                      spec,
+                      metrics,
+                      "avro",
+                      partitionKeySplitter);
             });
       } else if (format.contains("parquet")) {
         task.run(
@@ -129,7 +138,13 @@ public class TableMigrationUtil {
               Metrics metrics =
                   getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
+                  buildDataFile(
+                      fileStatus.get(index),
+                      partitionKey,
+                      spec,
+                      metrics,
+                      "parquet",
+                      partitionKeySplitter);
             });
       } else if (format.contains("orc")) {
         task.run(
@@ -137,7 +152,13 @@ public class TableMigrationUtil {
               Metrics metrics =
                   getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
+                  buildDataFile(
+                      fileStatus.get(index),
+                      partitionKey,
+                      spec,
+                      metrics,
+                      "orc",
+                      partitionKeySplitter);
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
@@ -186,13 +207,18 @@ public class TableMigrationUtil {
   }
 
   private static DataFile buildDataFile(
-      FileStatus stat, String partitionKey, PartitionSpec spec, Metrics metrics, String format) {
+      FileStatus stat,
+      String partitionKey,
+      PartitionSpec spec,
+      Metrics metrics,
+      String format,
+      String partitionKeySplitter) {
     return DataFiles.builder(spec)
         .withPath(stat.getPath().toString())
         .withFormat(format)
         .withFileSizeInBytes(stat.getLen())
         .withMetrics(metrics)
-        .withPartitionPath(partitionKey)
+        .withPartitionPath(partitionKey, partitionKeySplitter)
         .build();
   }
 

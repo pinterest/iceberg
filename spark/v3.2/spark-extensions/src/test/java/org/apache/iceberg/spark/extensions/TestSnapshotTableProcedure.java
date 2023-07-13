@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -227,5 +228,27 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
+  }
+
+  @Test
+  public void testSnapshotWithEmptyFile() throws IOException {
+    File tempFolder = temp.newFolder();
+    String location = tempFolder.toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    int fileCount = tempFolder.listFiles().length;
+    sql("INSERT INTO TABLE %s SELECT * FROM VALUES (1, 'a') limit 0", sourceName);
+    int newFileCount = tempFolder.listFiles().length;
+    Assert.assertEquals(
+        "There should be exactly 2 new file generated after writing empty data to the table (1 SUCCESS file, 1 empty file)",
+        2,
+        newFileCount - fileCount);
+
+    Object result =
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+
+    Assert.assertEquals("Should have added one file", 1L, result);
   }
 }

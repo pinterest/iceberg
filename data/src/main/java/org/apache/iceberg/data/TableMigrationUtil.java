@@ -162,7 +162,9 @@ public class TableMigrationUtil {
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
       }
-      return Arrays.asList(datafiles);
+      return Arrays.stream(datafiles)
+          .filter((x) -> x.recordCount() > 0)
+          .collect(Collectors.toList());
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
     } finally {

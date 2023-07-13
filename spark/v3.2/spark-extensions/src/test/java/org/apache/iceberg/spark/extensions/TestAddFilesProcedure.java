@@ -916,6 +916,44 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @Test
+  public void testSkipAddingEmptyFile() {
+    createUnpartitionedParquetFileTableWithEmptyFiles();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    Object tableResult =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, tableResult);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  private void createUnpartitionedParquetFileTableWithEmptyFiles() {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, "parquet", fileTableDir.getAbsolutePath());
+    unpartitionedDF.write().insertInto(sourceTableName);
+    unpartitionedDF.write().insertInto(sourceTableName);
+    int fileCount = fileTableDir.listFiles().length;
+    unpartitionedDF.limit(0).write().insertInto(sourceTableName);
+    int newFileCount = fileTableDir.listFiles().length;
+    Assert.assertEquals(
+        "There should be exactly 2 new file generated after writing empty data to the table (1 SUCCESS file, 1 empty file)",
+        2,
+        newFileCount - fileCount);
+  }
+
   private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
 
   private static final StructField[] struct = {

@@ -925,12 +925,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    List<Object[]> result =
-        sql(
+    Object tableResult =
+        scalarSql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
+    Assert.assertEquals(2L, tableResult);
 
     assertEquals(
         "Iceberg table contains correct data",

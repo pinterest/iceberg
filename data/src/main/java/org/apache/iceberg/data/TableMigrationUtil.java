@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -142,9 +141,7 @@ public class TableMigrationUtil {
             index -> {
               Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
               datafiles[index] =
-                  metrics.recordCount() > 0
-                      ? buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "avro")
-                      : null;
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "avro");
             });
       } else if (format.contains("parquet")) {
         task.run(
@@ -152,10 +149,7 @@ public class TableMigrationUtil {
               Metrics metrics =
                   getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  metrics.recordCount() > 0
-                      ? buildDataFile(
-                          fileStatus.get(index), partitionValues, spec, metrics, "parquet")
-                      : null;
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
@@ -163,15 +157,14 @@ public class TableMigrationUtil {
               Metrics metrics =
                   getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  metrics.recordCount() > 0
-                      ? buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "orc")
-                      : null;
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "orc");
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
       }
-      return Arrays.asList(
-          Arrays.stream(datafiles).filter(Objects::nonNull).toArray(DataFile[]::new));
+      return Arrays.stream(datafiles)
+          .filter((x) -> x.recordCount() > 0)
+          .collect(Collectors.toList());
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
     } finally {

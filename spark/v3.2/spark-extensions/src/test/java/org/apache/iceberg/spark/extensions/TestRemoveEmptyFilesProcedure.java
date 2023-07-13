@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -94,12 +94,12 @@ public class TestRemoveEmptyFilesProcedure extends SparkExtensionsTestBase {
     unpartitionedDF.write().insertInto(sourceTableName);
     unpartitionedDF.write().insertInto(sourceTableName);
     Set<String> filePaths =
-        Arrays.stream(Objects.requireNonNull(fileTableDir.listFiles()))
+        Arrays.stream(Preconditions.checkNotNull(fileTableDir.listFiles()))
             .map(File::getAbsolutePath)
             .collect(java.util.stream.Collectors.toSet());
     unpartitionedDF.limit(0).write().insertInto(sourceTableName);
     Set<String> newFilePaths =
-        Arrays.stream(Objects.requireNonNull(fileTableDir.listFiles()))
+        Arrays.stream(Preconditions.checkNotNull(fileTableDir.listFiles()))
             .map(File::getAbsolutePath)
             .collect(java.util.stream.Collectors.toSet());
     newFilePaths.removeAll(filePaths);

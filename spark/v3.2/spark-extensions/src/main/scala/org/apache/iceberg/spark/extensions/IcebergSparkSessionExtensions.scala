@@ -33,7 +33,12 @@ import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
-import org.apache.spark.sql.execution.datasources.v2.{ExtendedDataSourceV2Strategy, ExtendedV2Writes, OptimizeMetadataOnlyDeleteFromTable, PinterestPlanChecker, ReplaceRewrittenRowLevelCommand, RowLevelCommandScanRelationPushDown}
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
+import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
+import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable
+import org.apache.spark.sql.execution.datasources.v2.PinterestPlanChecker
+import org.apache.spark.sql.execution.datasources.v2.ReplaceRewrittenRowLevelCommand
+import org.apache.spark.sql.execution.datasources.v2.RowLevelCommandScanRelationPushDown
 import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruning
 
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {

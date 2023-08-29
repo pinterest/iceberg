@@ -31,7 +31,10 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     api project(':iceberg-data')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
-    implementation project(':iceberg-hive-metastore')
+    implementation (project(':iceberg-hive-metastore')) {
+      exclude group: 'org.apache.hive', module: 'hive-metastore'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-client'
+    }
 
     compileOnly "org.apache.flink:flink-avro:${flinkVersion}"
     // for dropwizard histogram metrics implementation
@@ -134,6 +137,10 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'org.apache.commons'
       exclude group: 'commons-pool'
       exclude group: 'commons-codec'
+      exclude group: 'commons-logging'
+      exclude group: 'commons-lang'
+      exclude group: 'commons-cli'
+      exclude group: 'commons-dbcp'
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.xml.bind'
       exclude group: 'javax.annotation'
@@ -231,6 +238,8 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
+    relocate 'org.apache.thrift', 'org.apache.hive.org.apache.thrift'
+    relocate 'com.facebook.fb303', 'org.apache.hive.com.facebook.fb303'
 
     archiveClassifier.set(null)
   }

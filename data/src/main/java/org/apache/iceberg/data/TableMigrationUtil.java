@@ -47,8 +47,13 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableMigrationUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
+  public static final String PINTEREST_EXPERIMENT_PARQUET_READ_THREADS =
+      "spark.sql.pinterest.experiment.parquet.read.threads";
   public static final String IGNORE_PARQUET_FIELD_IDS = "ignore.parquet.file.ids";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
@@ -81,6 +86,11 @@ public class TableMigrationUtil {
       Configuration conf,
       MetricsConfig metricsConfig,
       NameMapping mapping) {
+    if (conf.get(PINTEREST_EXPERIMENT_PARQUET_READ_THREADS) != null) {
+      int numThreads = Integer.parseInt(conf.get(PINTEREST_EXPERIMENT_PARQUET_READ_THREADS));
+      LOG.info("Going to use {} threads to read parquet file metadata", numThreads);
+      return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, numThreads);
+    }
     return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1);
   }
 

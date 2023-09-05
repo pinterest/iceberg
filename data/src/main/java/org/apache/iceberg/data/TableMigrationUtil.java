@@ -72,6 +72,9 @@ public class TableMigrationUtil {
    * @param partition map of column names to column values for the partition
    * @param uri partition location URI
    * @param format partition format, avro, parquet or orc
+   * @param bucketId bucket id of the bucket of the partition that will be imported. When null, the
+   *     whole partition will be imported in this function.
+   * @param bucketCount the number of bucket a partition will be bucketed by.
    * @param spec a partition spec
    * @param conf a Hadoop conf
    * @param metricsConfig a metrics conf
@@ -82,6 +85,8 @@ public class TableMigrationUtil {
       Map<String, String> partition,
       String uri,
       String format,
+      Integer bucketId,
+      Integer bucketCount,
       PartitionSpec spec,
       Configuration conf,
       MetricsConfig metricsConfig,
@@ -89,9 +94,20 @@ public class TableMigrationUtil {
     if (conf.get(PINTEREST_EXPERIMENT_PARQUET_READ_THREADS) != null) {
       int numThreads = Integer.parseInt(conf.get(PINTEREST_EXPERIMENT_PARQUET_READ_THREADS));
       LOG.info("Going to use {} threads to read parquet file metadata", numThreads);
-      return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, numThreads);
+      return listPartition(
+          partition,
+          uri,
+          format,
+          bucketId,
+          bucketCount,
+          spec,
+          conf,
+          metricsConfig,
+          mapping,
+          numThreads);
     }
-    return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1);
+    return listPartition(
+        partition, uri, format, bucketId, bucketCount, spec, conf, metricsConfig, mapping, 1);
   }
 
   /**
@@ -107,6 +123,9 @@ public class TableMigrationUtil {
    * @param partition map of column names to column values for the partition
    * @param partitionUri partition location URI
    * @param format partition format, avro, parquet or orc
+   * @param bucketId bucket id of the bucket of the partition that will be imported. When null, the
+   *     whole partition will be imported in this function.
+   * @param bucketCount the number of bucket a partition will be bucketed by.
    * @param spec a partition spec
    * @param conf a Hadoop conf
    * @param metricsSpec a metrics conf
@@ -118,6 +137,8 @@ public class TableMigrationUtil {
       Map<String, String> partition,
       String partitionUri,
       String format,
+      Integer bucketId,
+      Integer bucketCount,
       PartitionSpec spec,
       Configuration conf,
       MetricsConfig metricsSpec,
@@ -133,10 +154,25 @@ public class TableMigrationUtil {
 
       Path partitionDir = new Path(partitionUri);
       FileSystem fs = partitionDir.getFileSystem(conf);
-      List<FileStatus> fileStatus =
-          Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
-              .collect(Collectors.toList());
+      List<FileStatus> fileStatus;
+      if (bucketId == null && bucketCount == null) {
+        fileStatus =
+            Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
+                .filter(FileStatus::isFile)
+                .collect(Collectors.toList());
+      } else {
+        if (bucketId != null && bucketCount != null) {
+          fileStatus =
+              Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
+                  .filter(FileStatus::isFile)
+                  .filter(file -> hashString(file.getPath().toString(), bucketCount) == bucketId)
+                  .collect(Collectors.toList());
+        } else {
+          throw new IllegalArgumentException(
+              "Both bucketId and bucketCount must be specified null or non-null at the same time");
+        }
+      }
+
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
           Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
@@ -238,5 +274,13 @@ public class TableMigrationUtil {
             Executors.newFixedThreadPool(
                 concurrentDeletes,
                 new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
+  }
+
+  private static int hashString(String str, int bucketSize) {
+    int hash = 0;
+    for (int i = 0; i < str.length(); i++) {
+      hash = (hash + str.charAt(i)) % bucketSize;
+    }
+    return hash;
   }
 }

@@ -90,6 +90,8 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Function2;
 import scala.Option;
 import scala.Some;
@@ -105,7 +107,9 @@ import scala.runtime.AbstractPartialFunction;
  * https://github.com/apache/iceberg/blob/apache-iceberg-0.8.0-incubating/spark/src/main/scala/org/apache/iceberg/spark/SparkTableUtil.scala
  */
 public class SparkTableUtil {
-
+  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
+  public static final String PINTEREST_EXPERIMENT_PARTITION_IMPORT_BUCKET_COUNT =
+      "spark.sql.pinterest.experiment.partition.importBucketCount";
   private static final String DUPLICATE_FILE_MESSAGE =
       "Cannot complete import because data files "
           + "to be imported already exist within the target table: %s.  "
@@ -318,6 +322,8 @@ public class SparkTableUtil {
         partition.values,
         partition.uri,
         partition.format,
+        partition.getBucketId(),
+        partition.getBucketCount(),
         spec,
         conf.get(),
         metricsConfig,
@@ -532,6 +538,8 @@ public class SparkTableUtil {
               partition,
               Util.uriToString(sourceTable.location()),
               format.get(),
+              null,
+              null,
               spec,
               conf,
               metricsConfig,
@@ -590,9 +598,29 @@ public class SparkTableUtil {
       conf.set(TableMigrationUtil.IGNORE_PARQUET_FIELD_IDS, "true");
     }
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
+    List<SparkPartition> newPartitions;
+    if (spark.conf().get(PINTEREST_EXPERIMENT_PARTITION_IMPORT_BUCKET_COUNT) != null) {
+      int bucketCount =
+          Integer.parseInt(spark.conf().get(PINTEREST_EXPERIMENT_PARTITION_IMPORT_BUCKET_COUNT));
+      newPartitions = Lists.newArrayList();
+      Preconditions.checkArgument(
+          bucketCount > 0, "Bucket count must be greater than 0, but was %s", bucketCount);
+      for (SparkPartition partition : partitions) {
+        for (int bucketId = 0; bucketId < bucketCount; bucketId++) {
+          SparkPartition sparkPartition =
+              new SparkPartition(partition.getValues(), partition.getUri(), partition.getFormat());
+          sparkPartition.setBucketId(bucketId);
+          sparkPartition.setBucketCount(bucketCount);
+          newPartitions.add(sparkPartition);
+        }
+      }
+    } else {
+      newPartitions = partitions;
+    }
     int parallelism =
         Math.min(
-            partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
+            newPartitions.size(),
+            spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -602,7 +630,7 @@ public class SparkTableUtil {
             : (nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null);
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);
+    JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(newPartitions, parallelism);
 
     Dataset<SparkPartition> partitionDS =
         spark.createDataset(partitionRDD.rdd(), Encoders.javaSerialization(SparkPartition.class));
@@ -737,6 +765,8 @@ public class SparkTableUtil {
     private final Map<String, String> values;
     private final String uri;
     private final String format;
+    private Integer bucketId;
+    private Integer bucketCount;
 
     public SparkPartition(Map<String, String> values, String uri, String format) {
       this.values = Maps.newHashMap(values);
@@ -754,6 +784,22 @@ public class SparkTableUtil {
 
     public String getFormat() {
       return format;
+    }
+
+    public Integer getBucketId() {
+      return bucketId;
+    }
+
+    public Integer getBucketCount() {
+      return bucketCount;
+    }
+
+    public void setBucketId(Integer bucketId) {
+      this.bucketId = bucketId;
+    }
+
+    public void setBucketCount(Integer bucketCount) {
+      this.bucketCount = bucketCount;
     }
 
     @Override

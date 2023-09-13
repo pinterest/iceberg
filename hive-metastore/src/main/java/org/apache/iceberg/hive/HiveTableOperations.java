@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
@@ -57,6 +59,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -211,7 +214,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         LOG.debug("Committing new table: {}", fullName);
       }
 
-      tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
+      // Pinterest specific: avoid updating the schema for thrift table in the HMS as the schema
+      // stored in HMS tend to have column
+      // type exceed the type string limit set by HMS thus got truncated to become an invalid
+      // schema. When Iceberg tries to update HMS table with
+      // a full size schema, HMS will throw incompatible schema exception. (message:The following
+      // columns have types
+      // incompatible with the existing columns in their respective positions). Since we do not use
+      // HMS as the source of the truth for table schema
+      // (we rely on Iceberg schema stored in Iceberg metadata file which is determined by the
+      // thrift class at the write time), we can safely skip updating schema for thrift table.
+      boolean isThriftBackedTable =
+          !Strings.isNullOrEmpty(metadata.properties().get(TableProperties.THRIFT_TYPE));
+      List<FieldSchema> oldCols = tbl.getSd().getCols();
+      tbl.setSd(
+          storageDescriptor(
+              metadata,
+              hiveEngineEnabled,
+              isThriftBackedTable ? oldCols : null)); // set to pickup any schema changes
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
@@ -525,10 +545,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return maxHiveTablePropertySize > 0;
   }
 
-  private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
+  private StorageDescriptor storageDescriptor(
+      TableMetadata metadata, boolean hiveEngineEnabled, List<FieldSchema> oldCols) {
 
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
-    storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
+    if (oldCols != null) {
+      storageDescriptor.setCols(oldCols);
+    } else {
+      storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
+    }
     storageDescriptor.setLocation(metadata.location());
     SerDeInfo serDeInfo = new SerDeInfo();
     serDeInfo.setParameters(Maps.newHashMap());

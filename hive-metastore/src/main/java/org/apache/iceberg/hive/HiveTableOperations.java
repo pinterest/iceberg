@@ -214,16 +214,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         LOG.debug("Committing new table: {}", fullName);
       }
 
-      // Pinterest specific: avoid updating the schema for thrift table in the HMS as the schema
-      // stored in HMS tend to have column
-      // type exceed the type string limit set by HMS thus got truncated to become an invalid
-      // schema. When Iceberg tries to update HMS table with
-      // a full size schema, HMS will throw incompatible schema exception. (message:The following
-      // columns have types
-      // incompatible with the existing columns in their respective positions). Since we do not use
-      // HMS as the source of the truth for table schema
-      // (we rely on Iceberg schema stored in Iceberg metadata file which is determined by the
-      // thrift class at the write time), we can safely skip updating schema for thrift table.
+      // Pinterest specific: avoid updating schema for thrift table in HMS as the schema stored in
+      // HMS tend to. When Iceberg tries to update HMS table with a full size schema, HMS will
+      // throw incompatible schema exception. Since we do not use HMS as the source of the
+      // truth for table schema (we rely on Iceberg schema stored in Iceberg metadata file
+      // which is determined by the thrift class at the write time), we can safely skip updating
+      // schema for thrift table.
       boolean isThriftBackedTable =
           !Strings.isNullOrEmpty(metadata.properties().get(TableProperties.THRIFT_TYPE));
       List<FieldSchema> oldCols = tbl.getSd().getCols();

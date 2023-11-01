@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to release iceberg python module. It is used within
-# https://jenkinsmaster-015.pinadmin.com/job/relese-iceberg-python-module/
+# https://jenkinsmaster-015.pinadmin.com/job/release-iceberg-python-module/
 
 set -x
 set -e
